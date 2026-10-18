@@ -20,7 +20,7 @@ def estructura_inicial():
         "super_master": {
             "username": "supermaster",
             "password": "disys2026",
-            "email_central": "ventasgeo389@gmail.com",
+            "email_central": "disys25@gmail.com",
             "webhook_central_url": ""
         },
         "bodegas": {},
