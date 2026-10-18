@@ -1,5 +1,5 @@
 import streamlit as st
-from modules.shield import aplicar_blindaje_y_estilos, mostrar_cabecera_corporativa
+from modules.shield import aplicar_blindaje_y_estilos, mostrar_cabecera_corporativa, obtener_logo_base64
 from modules.database import autenticar_usuario, cargar_db
 from modules.view_supermaster import render_super_master_view
 from modules.view_master import render_master_view
@@ -62,7 +62,7 @@ if st.session_state["sesion"] is None:
             </div>
         </div>
     """, unsafe_allow_html=True)
-    
+
 # ==============================================================================
 # VISTAS INTERNAS SEGÚN EL ROL DEL USUARIO AUTENTICADO
 # ==============================================================================
