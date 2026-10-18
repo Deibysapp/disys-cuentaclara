@@ -3,7 +3,7 @@ import uuid
 from modules.database import cargar_db, guardar_db, generar_excel_respaldo, solo_fecha_str
 
 def render_super_master_view(sesion):
-      db = cargar_db()
+    db = cargar_db()
     
     st.markdown("""
         <div style="background: linear-gradient(135deg, #0A2239 0%, #13385C 100%); color: #FFFFFF; padding: 22px; border-radius: 14px; border-left: 6px solid #F9690E; margin-bottom: 20px;">
@@ -12,7 +12,6 @@ def render_super_master_view(sesion):
         </div>
     """, unsafe_allow_html=True)
 
-    # Métricas Globales Superiores
     total_bodegas = len(db["bodegas"])
     total_activas = sum(1 for b in db["bodegas"].values() if b.get("activa", True))
     total_clientes_global = len(db["clientes"])
@@ -61,7 +60,6 @@ def render_super_master_view(sesion):
                     </div>
                 """, unsafe_allow_html=True)
 
-                # Controles rápidos de edición para cada bodega
                 col_c1, col_c2, col_c3 = st.columns(3)
                 with col_c1:
                     nueva_activa = st.selectbox(
@@ -90,7 +88,6 @@ def render_super_master_view(sesion):
                         st.rerun()
 
                 with col_c3:
-                    # Opciones modulares de carga habilitadas
                     mods = b_info.get("modulos_carga", {"monto": True, "productos": False, "foto": False})
                     m_prod = st.checkbox("Listado de Productos", value=mods.get("productos", False), key=f"mod_prod_{b_id}")
                     m_foto = st.checkbox("Evidencia Fotográfica", value=mods.get("foto", False), key=f"mod_foto_{b_id}")
@@ -138,7 +135,6 @@ def render_super_master_view(sesion):
                         "modulos_carga": {"monto": True, "productos": c_prod, "foto": c_foto},
                         "drive_webhook_url": ""
                     }
-                    # Crear el Usuario Máster asociado
                     db["usuarios"].append({
                         "username": user_master.strip(),
                         "password": pass_master.strip(),
