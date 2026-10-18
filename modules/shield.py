@@ -28,7 +28,7 @@ def aplicar_blindaje_y_estilos():
 
     st.markdown("""
         <style>
-        /* OCULTAMIENTO TOTAL DE ELEMENTOS STREAMLIT */
+        /* OCULTAMIENTO TOTAL DE ELEMENTOS STREAMLIT Y BARRA MÓVIL */
             #MainMenu {visibility: hidden !important; display: none !important;}
             header {visibility: hidden !important; display: none !important;}
             footer {visibility: hidden !important; display: none !important;}
@@ -38,17 +38,21 @@ def aplicar_blindaje_y_estilos():
             [data-testid="stStatusWidget"] {visibility: hidden !important; display: none !important;}
             [data-testid="manage-app-button"] {display: none !important;}
             [data-testid="stHeader"] {display: none !important;}
+            [data-testid="stConnectionStatus"] {display: none !important; visibility: hidden !important;}
             .viewerBadge_container__1QSob {display: none !important; visibility: hidden !important;}
             .styles_viewerBadge__1yB5_ {display: none !important; visibility: hidden !important;}
             
-            /* Ocultar botones flotantes inferiores derechos */
-            div[class*="viewerBadge"] {display: none !important; visibility: hidden !important;}
-            iframe[title="streamlitApp"] {display: block;}
-            
-            .block-container {
-                padding-top: 0.8rem !important;
-                padding-bottom: 2.5rem !important;
-                max-width: 1150px !important;
+            /* Ocultar cualquier botón flotante en la esquina inferior derecha en móviles */
+            div[class*="viewerBadge"], footer, [data-testid="stAppToolbar"] {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }
+
+            /* Forzar ocultamiento específico para contenedores flotantes de Streamlit Cloud en móviles */
+            .css-1544g2n, .css-1dp5vir, div.eczgczp1 {
+                display: none !important;
             }
        
             /* ==========================================================
