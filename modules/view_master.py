@@ -49,7 +49,6 @@ def render_master_view(sesion):
                 st.success("¡Tasas actualizadas correctamente para toda la bodega!")
 
         st.markdown("<br>", unsafe_allow_html=True)
-        # Resumen rápido de cartera activa
         clientes_b = [c for c in db["clientes"] if c["bodega_id"] == bodega_id]
         total_calle = sum(c.get("saldo_cop", 0) for c in clientes_b)
         st.markdown(f"""
@@ -96,7 +95,6 @@ def render_master_view(sesion):
                     }
                     db["clientes"].append(nuevo_c)
 
-                    # Si trajo deuda inicial del cuaderno, registrar movimiento inicial
                     if n_deuda_inicial > 0:
                         db["movimientos"].append({
                             "id": "mov_ini_" + str(datetime.now().timestamp()),
@@ -127,11 +125,13 @@ def render_master_view(sesion):
                 url_cordial = link_whatsapp_cobranza_cordial(
                     nombre_bodega, cli["nombre"], cli["telefono"], s_actual, cli.get("fecha_deuda_activa", "")
                 )
+                tipo_credito_txt = "⭐ VIP" if cli.get("es_vip") else f"Límite: {formatear_cop(cli['limite_cop'])}"
+                
                 st.markdown(f"""
                     <div style="background: white; padding: 14px 18px; border-radius: 10px; border: 1px solid #E2E8F0; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                         <div>
                             <b>{cli['nombre']}</b> (Cédula: {cli['cedula']})<br>
-                            <span style="font-size: 13px; color: #64748B;">Tel: {cli['telefono']} | {'⭐ VIP' : Límite: {formatear_cop(cli['limite_cop'])}}</span>
+                            <span style="font-size: 13px; color: #64748B;">Tel: {cli['telefono']} | {tipo_credito_txt}</span>
                         </div>
                         <div style="text-align: right;">
                             <span style="font-size: 15px; font-weight: 800; color: {'#EF4444' if s_actual > 0 else '#10B981'};">
@@ -175,7 +175,6 @@ def render_master_view(sesion):
 
             with st.form("form_procesar_pago"):
                 tipo_pago = st.radio("Tipo de Pago", options=["Pago Completo (Cancela toda la deuda)", "Abono Parcial"])
-                
                 moneda_recibida = st.selectbox("Moneda en la que entrega el dinero el cliente", options=["Pesos Colombianos (COP)", "Dólares Americanos (USD)", "Bolívares (VES - Pago Móvil / Punto)"])
                 
                 if "Completo" in tipo_pago:
@@ -187,7 +186,6 @@ def render_master_view(sesion):
                 nota_pago = st.text_input("Nota o Referencia bancaria (Opcional)", placeholder="Ej. Ref 1234 pago móvil banesco")
 
                 if st.form_submit_button("✅ Procesar Pago y Generar WhatsApp", type="primary"):
-                    # Calcular cuánto descuenta en Pesos (COP)
                     if "Pesos" in moneda_recibida:
                         descuento_cop = monto_entregado
                         monto_original = monto_entregado
@@ -196,7 +194,7 @@ def render_master_view(sesion):
                         descuento_cop = monto_entregado * tasa_usd
                         monto_original = monto_entregado
                         tasa_usada = tasa_usd
-                    else: # Bolívares
+                    else:
                         descuento_cop = monto_entregado / tasa_ves if tasa_ves > 0 else 0
                         monto_original = monto_entregado
                         tasa_usada = tasa_ves
@@ -216,196 +214,9 @@ def render_master_view(sesion):
                     if nuevo_saldo == 0:
                         cliente_pagador["fecha_deuda_activa"] = ""
 
-                    # Registrar movimiento de pago
                     mov_pago = {
                         "id": "pag_" + str(datetime.now().timestamp()),
                         "bodega_id": bodega_id,
                         "tipo": "PAGO",
                         "cliente_id": cliente_pagador["id"],
                         "cliente_nombre": cliente_pagador["nombre"],
-                        "monto_cop": descuento_cop,
-                        "moneda_pago": moneda_recibida,
-                        "monto_moneda_original": monto_original,
-                        "tasa_aplicada": tasa_usada,
-                        "detalle": nota_pago,
-                        "usuario_registro": sesion["nombre"],
-                        "fecha": fecha_actual_str(),
-                        "saldo_resultante_cop": nuevo_saldo
-                    }
-                    db["movimientos"].append(mov_pago)
-                    encolar_y_sincronizar(db, bodega_id, "PAGO_RECIBIDO", mov_pago)
-
-                    st.success(f"¡Pago procesado con éxito! Se descontaron {formatear_cop(descuento_cop)} de la deuda.")
-
-                    url_w_pago = link_whatsapp_pago(
-                        nombre_bodega,
-                        cliente_pagador["nombre"],
-                        cliente_pagador["telefono"],
-                        descuento_cop,
-                        nuevo_saldo
-                    )
-
-                    st.markdown(f"""
-                        <div style="margin-top: 15px; padding: 14px; background: #D1FAE5; border-radius: 10px; text-align: center;">
-                            <b>📲 ¡Recibo listo para enviar por WhatsApp!</b><br><br>
-                            <a href="{url_w_pago}" target="_blank" style="background: #25D366; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 700; display: inline-block;">
-                                Enviar Recibo al Cliente 🚀
-                            </a>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-    # --------------------------------------------------------------------------
-    # PESTAÑA 4: GESTIÓN DE EMPLEADOS (CON CANDADO DE CUPO)
-    # --------------------------------------------------------------------------
-    with t4:
-        st.markdown("### 👨‍💼 Gestión de Empleados (Cajeros / Despachadores)")
-        
-        empleados_b = [u for u in db["usuarios"] if u["bodega_id"] == bodega_id and u["rol"] == "EMPLEADO"]
-        max_cupos = bodega_info.get("max_empleados", 1)
-        usados = len(empleados_b)
-
-        st.markdown(f"""
-            <div class="disys-card">
-                <b>Licencias de Empleados Autorizadas:</b> {usados} de {max_cupos} utilizadas.<br>
-                <span style="font-size: 13px; color: #64748B;">Si necesitas crear más usuarios empleados de los permitidos, solicita autorización al Super Máster.</span>
-            </div>
-        """, unsafe_allow_html=True)
-
-        if usados < max_cupos:
-            with st.form("form_crear_empleado"):
-                st.markdown("<b>Crear Nuevo Usuario Empleado</b>", unsafe_allow_html=True)
-                e_nom = st.text_input("Nombre del Empleado")
-                e_user = st.text_input("Usuario de Acceso")
-                e_pass = st.text_input("Clave de Acceso", type="password")
-
-                if st.form_submit_button("➕ Crear Empleado", type="primary"):
-                    if not e_nom or not e_user or not e_pass:
-                        st.error("Todos los campos son obligatorios.")
-                    else:
-                        db["usuarios"].append({
-                            "username": e_user.strip(),
-                            "password": e_pass.strip(),
-                            "nombre": e_nom,
-                            "rol": "EMPLEADO",
-                            "bodega_id": bodega_id,
-                            "activo": True
-                        })
-                        guardar_db(db)
-                        st.success(f"¡Empleado '{e_nom}' creado con éxito!")
-                        st.rerun()
-        else:
-            st.warning("🔒 Has alcanzado el límite máximo de empleados autorizados para tu plan actual. Presiona el botón de abajo para notificar al Super Máster.")
-            if st.button("🔓 Solicitar Cupos Adicionales al Super Máster"):
-                st.info("📲 Notificación enviada al Super Máster para ampliar tu licencia de empleados.")
-
-        st.markdown("#### Empleados Activos en tu Bodega:")
-        for emp in empleados_b:
-            st.markdown(f"- 👤 <b>{emp['nombre']}</b> (Usuario: <code>{emp['username']}</code>)", unsafe_allow_html=True)
-
-    # --------------------------------------------------------------------------
-    # PESTAÑA 5: BANDEJA DE SOBREGIROS PENDIENTES
-    # --------------------------------------------------------------------------
-    with t5:
-        st.markdown("### ⚠️ Solicitudes de Autorización de Sobregiro")
-        st.write("Aquí aparecen las compras que intentaron hacer los empleados superando el límite de crédito del cliente. Puedes autorizarlas para que el empleado pueda procesarlas al recargar su pantalla.")
-
-        sobregiros_b = [s for s in db["solicitudes_sobregiro"] if s["bodega_id"] == bodega_id and s["estado"] == "PENDIENTE"]
-
-        if not sobregiros_b:
-            st.info("No hay solicitudes de sobregiro pendientes por aprobar.")
-        else:
-            for sob in sobregiros_b:
-                st.markdown(f"""
-                    <div class="disys-card" style="border-left: 5px solid #F59E0B;">
-                        <b>Cliente:</b> {sob['cliente_nombre']}<br>
-                        <b>Monto Solicitado:</b> <span style="color: #F9690E; font-weight: 800;">{formatear_cop(sob['monto_solicitado'])}</span><br>
-                        <b>Solicitado por empleado:</b> {sob['empleado']} ({sob['fecha']})
-                    </div>
-                """, unsafe_allow_html=True)
-                if st.button(f"✅ Autorizar Excepción para {sob['cliente_nombre']}", key=f"btn_sob_{sob['id']}"):
-                    # Encontrar cliente y actualizar saldo
-                    for cli in db["clientes"]:
-                        if cli["id"] == sob["cliente_id"]:
-                            nuevo_s = float(cli.get("saldo_cop", 0)) + float(sob["monto_solicitado"])
-                            cli["saldo_cop"] = nuevo_s
-                            if not cli.get("fecha_deuda_activa"):
-                                cli["fecha_deuda_activa"] = solo_fecha_str()
-
-                            mov_sob = {
-                                "id": "mov_sob_" + str(datetime.now().timestamp()),
-                                "bodega_id": bodega_id,
-                                "tipo": "DEUDA",
-                                "cliente_id": cli["id"],
-                                "cliente_nombre": cli["nombre"],
-                                "cliente_cedula": cli["cedula"],
-                                "monto_cop": sob["monto_solicitado"],
-                                "detalle": f"Compra a crédito autorizada por Sobregiro (Empleado: {sob['empleado']})",
-                                "usuario_registro": f"{sesion['nombre']} (Autorizó Sobregiro)",
-                                "fecha": fecha_actual_str(),
-                                "saldo_resultante_cop": nuevo_s
-                            }
-                            db["movimientos"].append(mov_sob)
-                            encolar_y_sincronizar(db, bodega_id, "SOBREGIRO_AUTORIZADO", mov_sob)
-                            break
-                    
-                    sob["estado"] = "APROBADO"
-                    guardar_db(db)
-                    st.success("¡Sobregiro autorizado con éxito! El empleado ya puede registrar la venta.")
-                    st.rerun()
-
-    # --------------------------------------------------------------------------
-    # PESTAÑA 6: CIERRE DIARIO DE CRÉDITOS Y RESPALDO EXCEL
-    # --------------------------------------------------------------------------
-    with t6:
-        st.markdown("### 📊 Cierre Diario de Créditos y Arqueo")
-        st.write("Consulta el movimiento exclusivo de créditos y pagos de la jornada.")
-
-        hoy_str = solo_fecha_str()
-        movs_hoy = [m for m in db["movimientos"] if m["bodega_id"] == bodega_id and hoy_str in m["fecha"]]
-
-        fiados_hoy = sum(m["monto_cop"] for m in movs_hoy if m["tipo"] in ["DEUDA", "SALDO_INICIAL"])
-        pagos_hoy = sum(m["monto_cop"] for m in movs_hoy if m["tipo"] == "PAGO")
-        total_calle_actual = sum(c.get("saldo_cop", 0) for c in clientes_b)
-
-        col_cd1, col_cd2, col_cd3 = st.columns(3)
-        with col_cd1:
-            st.markdown(f"""<div class="disys-card" style="text-align:center;">
-                <div style="font-size:12px; color:#64748B; font-weight:700;">TOTAL EN LA CALLE (ACTUAL)</div>
-                <div style="font-size:20px; font-weight:900; color:#0A2239;">{formatear_cop(total_calle_actual)}</div>
-            </div>""", unsafe_allow_html=True)
-        with col_cd2:
-            st.markdown(f"""<div class="disys-card" style="text-align:center;">
-                <div style="font-size:12px; color:#64748B; font-weight:700;">FIADO HOY EN MERCANCÍA</div>
-                <div style="font-size:20px; font-weight:900; color:#F9690E;">{formatear_cop(fiados_hoy)}</div>
-            </div>""", unsafe_allow_html=True)
-        with col_cd3:
-            st.markdown(f"""<div class="disys-card" style="text-align:center;">
-                <div style="font-size:12px; color:#64748B; font-weight:700;">RECUPERADO HOY (COBRANZA)</div>
-                <div style="font-size:20px; font-weight:900; color:#10B981;">{formatear_cop(pagos_hoy)}</div>
-            </div>""", unsafe_allow_html=True)
-
-        if st.button("💾 Guardar y Consolidar Cierre del Día", type="primary"):
-            cierre_reg = {
-                "id": "cierm_" + str(datetime.now().timestamp()),
-                "bodega_id": bodega_id,
-                "fecha": hoy_str,
-                "cartera_total_cop": total_calle_actual,
-                "fiados_hoy_cop": fiados_hoy,
-                "recuperado_hoy_cop": pagos_hoy,
-                "recibido_cop": pagos_hoy,
-                "recibido_usd": 0,
-                "recibido_ves": 0,
-                "usuario": sesion["nombre"]
-            }
-            db["cierres_diarios"].append(cierre_reg)
-            guardar_db(db)
-            st.success("¡Cierre diario registrado y respaldado correctamente!")
-
-        st.markdown("<br>### 📥 Descargar Respaldo en Excel (.xlsx) de tu Bodega", unsafe_allow_html=True)
-        excel_b_bytes = generar_excel_respaldo(bodega_id=bodega_id)
-        st.download_button(
-            label="📥 Descargar Excel de Respaldo de la Bodega",
-            data=excel_b_bytes,
-            file_name=f"DiSys_CuentaClara_{nombre_bodega.replace(' ', '_')}_{solo_fecha_str()}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
