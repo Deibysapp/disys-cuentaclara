@@ -16,12 +16,10 @@ def render_master_view(sesion):
         </div>
     """, unsafe_allow_html=True)
 
-    # Inicializar tasas en bodega si no existen
     if "tasas" not in bodega_info:
         bodega_info["tasas"] = {"usd_to_cop": 4100.0, "ves_factor": 1.0}
         guardar_db(db)
 
-    # Pestañas principales del Dueño
     t1, t2, t3, t4, t5, t6 = st.tabs([
         "💰 Tasas y Caja", 
         "👥 Clientes y Deudas", 
@@ -31,9 +29,6 @@ def render_master_view(sesion):
         "📊 Cierre Diario y Respaldo"
     ])
 
-    # --------------------------------------------------------------------------
-    # PESTAÑA 1: TASAS TRIMONEDA Y CONFIGURACIÓN RÁPIDA
-    # --------------------------------------------------------------------------
     with t1:
         st.markdown("### 💱 Tasas de Cambio del Día (Trimoneda COP/USD/VES)")
         st.write("Fija las tasas manuales con las que el sistema calculará los equivalentes al momento de recibir dólares o bolívares por abonos de crédito.")
@@ -58,9 +53,6 @@ def render_master_view(sesion):
             </div>
         """, unsafe_allow_html=True)
 
-    # --------------------------------------------------------------------------
-    # PESTAÑA 2: GESTIÓN DE CLIENTES Y VACIADO DE CUADERNO
-    # --------------------------------------------------------------------------
     with t2:
         st.markdown("### 👥 Cartera de Clientes y Vaciado de Cuaderno")
         st.write("Aquí puedes registrar nuevos clientes, asignarles límite de crédito en pesos, marcarlos como VIP o pasar sus cuentas viejas desde el cuaderno físico.")
@@ -75,7 +67,7 @@ def render_master_view(sesion):
             with col_nc2:
                 n_es_vip = st.checkbox("⭐ Cliente VIP (Sin límite de crédito)")
                 n_limite = st.number_input("Límite de Crédito en Pesos (COP)", min_value=0.0, value=50000.0, step=10000.0)
-                n_deuda_inicial = st.number_input("📓 Saldo Inicial (Vaciado de Cuaderno en COP)", min_value=0.0, value=0.0, step=5000.0, help="Si el cliente ya debía dinero en el cuaderno de papel, coloca aquí su saldo inicial acumulado para ponerlo al día.")
+                n_deuda_inicial = st.number_input("📓 Saldo Inicial (Vaciado de Cuaderno en COP)", min_value=0.0, value=0.0, step=5000.0)
 
             if st.form_submit_button("➕ Guardar Cliente Autorizado", type="primary"):
                 if not n_nombre or not n_cedula:
@@ -111,7 +103,7 @@ def render_master_view(sesion):
                         })
 
                     guardar_db(db)
-                    st.success(f"¡Cliente '{n_nombre}' registrado exitosamente con saldo inicial de {formatear_cop(n_deuda_inicial)}!")
+                    st.success(f"¡Cliente '{n_nombre}' registrado con éxito!")
                     st.rerun()
 
         st.markdown("<hr style='margin: 20px 0;'>", unsafe_allow_html=True)
@@ -126,87 +118,56 @@ def render_master_view(sesion):
                     nombre_bodega, cli["nombre"], cli["telefono"], s_actual, cli.get("fecha_deuda_activa", "")
                 )
                 tipo_credito_txt = "⭐ VIP" if cli.get("es_vip") else f"Límite: {formatear_cop(cli['limite_cop'])}"
+                color_deuda = "#EF4444" if s_actual > 0 else "#10B981"
                 
                 st.markdown(f"""
-                    <div style="background: white; padding: 14px 18px; border-radius: 10px; border: 1px solid #E2E8F0; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                        <div>
-                            <b>{cli['nombre']}</b> (Cédula: {cli['cedula']})<br>
-                            <span style="font-size: 13px; color: #64748B;">Tel: {cli['telefono']} | {tipo_credito_txt}</span>
-                        </div>
-                        <div style="text-align: right;">
-                            <span style="font-size: 15px; font-weight: 800; color: {'#EF4444' if s_actual > 0 else '#10B981'};">
-                                Deuda: {formatear_cop(s_actual)}
-                            </span><br>
-                            {f'<a href="{url_cordial}" target="_blank" style="background: #25D366; color: white; padding: 4px 10px; border-radius: 6px; text-decoration: none; font-size: 11.5px; font-weight: 700; display: inline-block; margin-top: 4px;">📲 Cobranza Cordial WhatsApp</a>' if s_actual > 0 else ''}
-                        </div>
+                    <div style="background: white; padding: 14px 18px; border-radius: 10px; border: 1px solid #E2E8F0; margin-bottom: 10px;">
+                        <b>{cli['nombre']}</b> (Cédula: {cli['cedula']})<br>
+                        <span style="font-size: 13px; color: #64748B;">Tel: {cli['telefono']} | {tipo_credito_txt}</span><br>
+                        <span style="font-size: 15px; font-weight: 800; color: {color_deuda};">Deuda: {formatear_cop(s_actual)}</span>
                     </div>
                 """, unsafe_allow_html=True)
+                if s_actual > 0:
+                    st.markdown(f'<a href="{url_cordial}" target="_blank" style="background: #25D366; color: white; padding: 6px 14px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 700; display: inline-block; margin-bottom: 10px;">📲 Cobranza Cordial WhatsApp</a>', unsafe_allow_html=True)
 
-    # --------------------------------------------------------------------------
-    # PESTAÑA 3: COBRANZA Y PROCESAMIENTO DE ABONOS / PAGOS
-    # --------------------------------------------------------------------------
     with t3:
         st.markdown("### 📥 Módulo Exclusivo de Cobranza (Abonos y Pagos)")
-        st.write("Solo el Usuario Máster está autorizado para recibir dinero, rebajar deudas y procesar abonos parciales o pagos totales.")
-
         clientes_con_deuda = [c for c in clientes_b if c.get("saldo_cop", 0) > 0]
 
         if not clientes_con_deuda:
-            st.success("🎉 ¡Excelente noticia! No hay ningún cliente con deudas pendientes en este momento.")
+            st.success("🎉 ¡Excelente noticia! No hay deudas pendientes.")
         else:
             map_deudores = {f"{c['nombre']} - Deuda: {formatear_cop(c.get('saldo_cop',0))}" : c for c in clientes_con_deuda}
-            op_sel = st.selectbox("Seleccione al Cliente que va a Pagar", options=list(map_deudores.keys()), key="select_pagador")
+            op_sel = st.selectbox("Seleccione al Cliente que va a Pagar", options=list(map_deudores.keys()))
             cliente_pagador = map_deudores[op_sel]
 
             deuda_actual = cliente_pagador.get("saldo_cop", 0)
             tasa_usd = float(bodega_info["tasas"].get("usd_to_cop", 4100.0))
             tasa_ves = float(bodega_info["tasas"].get("ves_factor", 1.0))
 
-            eq_usd = deuda_actual / tasa_usd if tasa_usd > 0 else 0
-            eq_ves = deuda_actual * tasa_ves
-
-            st.markdown(f"""
-                <div class="disys-card">
-                    <b>Cliente:</b> {cliente_pagador['nombre']}<br>
-                    <b>Saldo Total en Deuda (COP):</b> <span style="color: #EF4444; font-weight: 800; font-size: 16px;">{formatear_cop(deuda_actual)}</span><br>
-                    <span style="font-size: 13px; color: #64748B;">Equivalentes estimados: approx. $ {eq_usd:.2f} USD | Bs {eq_ves:,.2f} VES</span>
-                </div>
-            """, unsafe_allow_html=True)
-
             with st.form("form_procesar_pago"):
                 tipo_pago = st.radio("Tipo de Pago", options=["Pago Completo (Cancela toda la deuda)", "Abono Parcial"])
-                moneda_recibida = st.selectbox("Moneda en la que entrega el dinero el cliente", options=["Pesos Colombianos (COP)", "Dólares Americanos (USD)", "Bolívares (VES - Pago Móvil / Punto)"])
+                moneda_recibida = st.selectbox("Moneda", options=["Pesos Colombianos (COP)", "Dólares Americanos (USD)", "Bolívares (VES)"])
                 
                 if "Completo" in tipo_pago:
                     monto_entregado = deuda_actual
-                    st.info(f"Se registrará la cancelación total de la deuda: {formatear_cop(deuda_actual)}")
                 else:
-                    monto_entregado = st.number_input("Monto entregado por el cliente en su moneda respectiva", min_value=0.0, step=1.0, format="%.2f")
+                    monto_entregado = st.number_input("Monto entregado", min_value=0.0, step=1.0)
 
-                nota_pago = st.text_input("Nota o Referencia bancaria (Opcional)", placeholder="Ej. Ref 1234 pago móvil banesco")
+                nota_pago = st.text_input("Nota o Referencia bancaria (Opcional)")
 
-                if st.form_submit_button("✅ Procesar Pago y Generar WhatsApp", type="primary"):
+                if st.form_submit_button("✅ Procesar Pago", type="primary"):
                     if "Pesos" in moneda_recibida:
                         descuento_cop = monto_entregado
-                        monto_original = monto_entregado
                         tasa_usada = 1.0
                     elif "Dólares" in moneda_recibida:
                         descuento_cop = monto_entregado * tasa_usd
-                        monto_original = monto_entregado
                         tasa_usada = tasa_usd
                     else:
                         descuento_cop = monto_entregado / tasa_ves if tasa_ves > 0 else 0
-                        monto_original = monto_entregado
                         tasa_usada = tasa_ves
 
                     if "Completo" in tipo_pago:
-                        descuento_cop = deuda_actual
-                        monto_original = deuda_actual
-
-                    if descuento_cop <= 0:
-                        st.error("El monto del pago debe ser mayor a cero.")
-                    elif descuento_cop > deuda_actual:
-                        st.warning("⚠️ El monto ingresado supera la deuda total del cliente. Ajustando al saldo pendiente.")
                         descuento_cop = deuda_actual
 
                     nuevo_saldo = max(0.0, deuda_actual - descuento_cop)
@@ -220,3 +181,65 @@ def render_master_view(sesion):
                         "tipo": "PAGO",
                         "cliente_id": cliente_pagador["id"],
                         "cliente_nombre": cliente_pagador["nombre"],
+                        "monto_cop": descuento_cop,
+                        "moneda_pago": moneda_recibida,
+                        "monto_moneda_original": monto_entregado,
+                        "tasa_aplicada": tasa_usada,
+                        "detalle": nota_pago,
+                        "usuario_registro": sesion["nombre"],
+                        "fecha": fecha_actual_str(),
+                        "saldo_resultante_cop": nuevo_saldo
+                    }
+                    db["movimientos"].append(mov_pago)
+                    encolar_y_sincronizar(db, bodega_id, "PAGO_RECIBIDO", mov_pago)
+                    st.success("¡Pago procesado con éxito!")
+                    st.rerun()
+
+    with t4:
+        st.markdown("### 👨‍💼 Gestión de Empleados")
+        empleados_b = [u for u in db["usuarios"] if u["bodega_id"] == bodega_id and u["rol"] == "EMPLEADO"]
+        max_cupos = bodega_info.get("max_empleados", 1)
+        
+        st.info(f"Licencias utilizadas: {len(empleados_b)} de {max_cupos}")
+        if len(empleados_b) < max_cupos:
+            with st.form("form_crear_emp"):
+                e_nom = st.text_input("Nombre del Empleado")
+                e_user = st.text_input("Usuario")
+                e_pass = st.text_input("Clave", type="password")
+                if st.form_submit_button("Crear Empleado", type="primary"):
+                    db["usuarios"].append({"username": e_user.strip(), "password": e_pass.strip(), "nombre": e_nom, "rol": "EMPLEADO", "bodega_id": bodega_id, "activo": True})
+                    guardar_db(db)
+                    st.success("¡Creado con éxito!")
+                    st.rerun()
+
+    with t5:
+        st.markdown("### ⚠️ Solicitudes de Sobregiro")
+        sobregiros_b = [s for s in db["solicitudes_sobregiro"] if s["bodega_id"] == bodega_id and s["estado"] == "PENDIENTE"]
+        if not sobregiros_b:
+            st.info("No hay solicitudes pendientes.")
+        else:
+            for sob in sobregiros_b:
+                st.write(f"Cliente: {sob['cliente_nombre']} - Monto: {formatear_cop(sob['monto_solicitado'])}")
+                if st.button(f"Aprobar {sob['id']}", key=f"ap_{sob['id']}"):
+                    for cli in db["clientes"]:
+                        if cli["id"] == sob["cliente_id"]:
+                            cli["saldo_cop"] = float(cli.get("saldo_cop", 0)) + float(sob["monto_solicitado"])
+                    sob["estado"] = "APROBADO"
+                    guardar_db(db)
+                    st.success("¡Aprobado!")
+                    st.rerun()
+
+    with t6:
+        st.markdown("### 📊 Cierre Diario y Respaldo")
+        hoy_str = solo_fecha_str()
+        movs_hoy = [m for m in db["movimientos"] if m["bodega_id"] == bodega_id and hoy_str in m["fecha"]]
+        fiados_hoy = sum(m["monto_cop"] for m in movs_hoy if m["tipo"] in ["DEUDA", "SALDO_INICIAL"])
+        pagos_hoy = sum(m["monto_cop"] for m in movs_hoy if m["tipo"] == "PAGO")
+        total_calle = sum(c.get("saldo_cop", 0) for c in clientes_b)
+
+        st.metric("Total en la Calle", formatear_cop(total_calle))
+        st.metric("Fiado Hoy", formatear_cop(fiados_hoy))
+        st.metric("Recuperado Hoy", formatear_cop(pagos_hoy))
+
+        excel_b_bytes = generar_excel_respaldo(bodega_id=bodega_id)
+        st.download_button("📥 Descargar Respaldo Excel", data=excel_b_bytes, file_name=f"Respaldo_{nombre_bodega}_{solo_fecha_str()}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
