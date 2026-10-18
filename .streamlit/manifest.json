@@ -1,0 +1,20 @@
+{
+  "name": "DiSys CuentaClara",
+  "short_name": "CuentaClara",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F6F9",
+  "theme_color": "#0A2239",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/TU_USUARIO/disys-cuentaclara/main/assets/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/TU_USUARIO/disys-cuentaclara/main/assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

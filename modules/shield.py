@@ -12,15 +12,17 @@ def obtener_logo_base64():
     return None
 
 def aplicar_blindaje_y_estilos():
-    """Oculta iconos de GitHub, configura metadatos para compartir y aplica el tema DiSys."""
+    """Oculta iconos de GitHub, configura metadatos, manifiesto y el tema DiSys."""
     
-    # Inyectar etiquetas Open Graph para la vista previa del logo al compartir
     st.markdown("""
         <head>
             <meta property="og:title" content="DiSys CuentaClara | Gestión de Créditos">
             <meta property="og:description" content="Plataforma profesional para la administración de créditos y cobranzas en bodegas.">
-            <meta property="og:image" content="https://raw.githubusercontent.com/Deibysapp/disys-cuentaclara/main/assets/logo.png">
+            <meta property="og:image" content="https://raw.githubusercontent.com/TU_USUARIO/disys-cuentaclara/main/assets/logo.png">
             <meta property="og:type" content="website">
+            <link rel="manifest" href="https://raw.githubusercontent.com/Deibysapp/disys-cuentaclara/main/manifest.json">
+            <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/TU_USUARIO/disys-cuentaclara/main/assets/logo.png">
+            <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/TU_USUARIO/disys-cuentaclara/main/assets/logo.png">
         </head>
     """, unsafe_allow_html=True)
 
