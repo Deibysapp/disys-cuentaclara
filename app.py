@@ -26,9 +26,16 @@ if "sesion" not in st.session_state:
 # PANTALLA DE LOGIN SI NO HAY SESIÓN ACTIVA
 # ==============================================================================
 if st.session_state["sesion"] is None:
-    st.markdown("""
+    logo_b64 = obtener_logo_base64()
+    if logo_b64:
+        img_login_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height: 60px; object-fit: contain; margin-bottom: 12px;" alt="DiSys Logo">'
+    else:
+        img_login_tag = ''
+
+    st.markdown(f"""
         <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center;">
             <div class="disys-card" style="width: 100%; max-width: 420px; text-align: center; border-top: 6px solid #F9690E; padding: 32px;">
+                {img_login_tag}
                 <h2 style="color: #0A2239; margin-bottom: 5px;">DiSys CuentaClara</h2>
                 <p style="color: #F9690E; font-weight: 700; font-size: 13px; margin-bottom: 24px; text-transform: uppercase;">Tecnología para la distribución eficiente</p>
     """, unsafe_allow_html=True)
@@ -55,7 +62,7 @@ if st.session_state["sesion"] is None:
             </div>
         </div>
     """, unsafe_allow_html=True)
-
+    
 # ==============================================================================
 # VISTAS INTERNAS SEGÚN EL ROL DEL USUARIO AUTENTICADO
 # ==============================================================================
