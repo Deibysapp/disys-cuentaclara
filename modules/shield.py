@@ -28,6 +28,30 @@ def aplicar_blindaje_y_estilos():
 
     st.markdown("""
         <style>
+        /* OCULTAMIENTO TOTAL DE ELEMENTOS STREAMLIT */
+            #MainMenu {visibility: hidden !important; display: none !important;}
+            header {visibility: hidden !important; display: none !important;}
+            footer {visibility: hidden !important; display: none !important;}
+            .stDeployButton {display: none !important;}
+            [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
+            [data-testid="stDecoration"] {visibility: hidden !important; display: none !important;}
+            [data-testid="stStatusWidget"] {visibility: hidden !important; display: none !important;}
+            [data-testid="manage-app-button"] {display: none !important;}
+            [data-testid="stHeader"] {display: none !important;}
+            .viewerBadge_container__1QSob {display: none !important; visibility: hidden !important;}
+            .styles_viewerBadge__1yB5_ {display: none !important; visibility: hidden !important;}
+            
+            /* Ocultar botones flotantes inferiores derechos */
+            div[class*="viewerBadge"] {display: none !important; visibility: hidden !important;}
+            iframe[title="streamlitApp"] {display: block;}
+            
+            .block-container {
+                padding-top: 0.8rem !important;
+                padding-bottom: 2.5rem !important;
+                max-width: 1150px !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
             /* ==========================================================
                1. OCULTAMIENTO TOTAL DE ICONOS GITHUB Y BARRAS STREAMLIT
                ========================================================== */

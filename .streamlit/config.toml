@@ -5,6 +5,11 @@ showErrorDetails = false
 [ui]
 hideTopBar = true
 
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = true
+
 [theme]
 primaryColor = "#F9690E"
 backgroundColor = "#F4F6F9"
