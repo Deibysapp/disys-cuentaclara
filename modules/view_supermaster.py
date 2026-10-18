@@ -33,46 +33,49 @@ def render_super_master_view(sesion):
             <div style="font-size:16px; font-weight:800; color:#10B981; margin-top:6px;">🟢 Sistema Sincronizado</div>
         </div>""", unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["🏪 Gestión de Bodegas", "➕ Registrar Nueva Bodega", "📊 Respaldo General (Excel)"])
+    tab1, tab2, tab3 = st.tabs(["🏪 Gestión de Bodegas y Másters", "➕ Registrar Nueva Bodega", "📊 Respaldo General (Excel)"])
 
     with tab1:
-        st.markdown("### 📋 Listado de Bodegas Asociadas al Servicio")
+        st.markdown("### 📋 Listado de Bodegas y Control de Usuarios Máster")
         if not db["bodegas"]:
             st.info("No hay bodegas registradas todavía. Ve a la pestaña 'Registrar Nueva Bodega' para dar de alta la primera.")
         else:
             for b_id, b_info in list(db["bodegas"].items()):
-                estado_txt = "🟢 Activa (Al día)" if b_info.get("activa", True) else "🔴 Suspendida (Falta de pago)"
+                estado_txt = "🟢 Activa (Al día)" if b_info.get("activa", True) else "🔴 Suspendida (Bloqueada)"
                 border_color = "#10B981" if b_info.get("activa", True) else "#EF4444"
+
+                # Buscar el usuario máster asociado a esta bodega
+                user_master_obj = next((u for u in db["usuarios"] if u.get("bodega_id") == b_id and u.get("rol") == "MASTER"), None)
+                master_username = user_master_obj["username"] if user_master_obj else "No asignado"
 
                 st.markdown(f"""
                     <div style="background: #FFFFFF; border-radius: 12px; padding: 16px; border: 1px solid #E2E8F0; border-left: 5px solid {border_color}; margin-bottom: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <h4 style="margin: 0; color: #0A2239; font-size: 17px;">{b_info['nombre']}</h4>
-                                <p style="margin: 3px 0; font-size: 13px; color: #64748B;">
-                                    <b>Dueño/a:</b> {b_info['dueño']} | <b>Teléfono:</b> {b_info['telefono']} | <b>Gmail:</b> {b_info.get('gmail_respaldo', 'N/A')}
-                                </p>
-                                <p style="margin: 3px 0; font-size: 12.5px; color: #1E293B;">
-                                    <b>Estado Licencia:</b> {estado_txt} | <b>Cupo Empleados Autorizados:</b> {b_info.get('max_empleados', 1)}
-                                </p>
-                            </div>
-                        </div>
+                        <h4 style="margin: 0; color: #0A2239; font-size: 17px;">{b_info['nombre']}</h4>
+                        <p style="margin: 3px 0; font-size: 13px; color: #64748B;">
+                            <b>Dueño/a:</b> {b_info['dueño']} | <b>Usuario Máster:</b> <code>{master_username}</code> | <b>Teléfono:</b> {b_info['telefono']}
+                        </p>
+                        <p style="margin: 3px 0; font-size: 12.5px; color: #1E293B;">
+                            <b>Estado Suscripción:</b> {estado_txt} | <b>Cupo Empleados:</b> {b_info.get('max_empleados', 1)} | <b>Gmail Drive:</b> {b_info.get('gmail_respaldo', 'N/A')}
+                        </p>
                     </div>
                 """, unsafe_allow_html=True)
 
                 col_c1, col_c2, col_c3 = st.columns(3)
                 with col_c1:
                     nueva_activa = st.selectbox(
-                        f"Estado Suscripción [{b_info['nombre']}]",
+                        f"Estado Acceso [{b_info['nombre']}]",
                         options=[True, False],
-                        format_func=lambda x: "🟢 Activo" if x else "🔴 Suspendido (Bloqueado)",
+                        format_func=lambda x: "🟢 Activo (Permite ingresar)" if x else "🔴 Suspendido (Bloquea acceso)",
                         index=0 if b_info.get("activa", True) else 1,
                         key=f"estado_{b_id}"
                     )
                     if nueva_activa != b_info.get("activa", True):
                         b_info["activa"] = nueva_activa
+                        # Actualizar también el estado en el usuario máster asociado
+                        if user_master_obj:
+                            user_master_obj["activo"] = nueva_activa
                         guardar_db(db)
-                        st.success("¡Estado actualizado!")
+                        st.success("¡Estado del Usuario Máster actualizado correctamente!")
                         st.rerun()
 
                 with col_c2:
@@ -88,13 +91,14 @@ def render_super_master_view(sesion):
                         st.rerun()
 
                 with col_c3:
-                    mods = b_info.get("modulos_carga", {"monto": True, "productos": False, "foto": False})
-                    m_prod = st.checkbox("Listado de Productos", value=mods.get("productos", False), key=f"mod_prod_{b_id}")
-                    m_foto = st.checkbox("Evidencia Fotográfica", value=mods.get("foto", False), key=f"mod_foto_{b_id}")
-                    if m_prod != mods.get("productos", False) or m_foto != mods.get("foto", False):
-                        b_info["modulos_carga"] = {"monto": True, "productos": m_prod, "foto": m_foto}
+                    st.markdown("<div style='height: 24px;'></div>", unsafe_allow_html=True)
+                    if st.button(f"🗑️ Eliminar Bodega y Máster", key=f"del_{b_id}", type="secondary"):
+                        # Eliminar bodega, sus usuarios y sus clientes asociados
+                        del db["bodegas"][b_id]
+                        db["usuarios"] = [u for u in db["usuarios"] if u.get("bodega_id") != b_id]
+                        db["clientes"] = [c for c in db["clientes"] if c.get("bodega_id") != b_id]
                         guardar_db(db)
-                        st.success("¡Preferencias de carga actualizadas!")
+                        st.warning(f"¡Bodega '{b_info['nombre']}' y su Usuario Máster fueron eliminados permanentemente!")
                         st.rerun()
 
                 st.markdown("<hr style='margin: 10px 0; border: 0; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
