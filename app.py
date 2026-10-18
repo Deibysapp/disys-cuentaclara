@@ -6,7 +6,7 @@ from modules.view_master import render_master_view
 from modules.view_empleado import render_empleado_view
 
 # ==============================================================================
-# CONFIGURACIÓN DE PÁGINA Y APLICACIÓN DE BLINDAJE DE SEGURIDAD
+# CONFIGURACIÓN DE PÁGINA Y BLINDAJE DE SEGURIDAD
 # ==============================================================================
 st.set_page_config(
     page_title="DiSys CuentaClara | Gestión de Créditos",
@@ -15,7 +15,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Aplicar ocultamiento de GitHub/Streamlit y bloqueo de clic derecho/F12
 aplicar_blindaje_y_estilos()
 
 # Inicializar estado de sesión si no existe
@@ -23,14 +22,11 @@ if "sesion" not in st.session_state:
     st.session_state["sesion"] = None
 
 # ==============================================================================
-# PANTALLA DE LOGIN SI NO HAY SESIÓN ACTIVA
+# PANTALLA DE LOGIN (Solo se muestra si no hay sesión activa)
 # ==============================================================================
 if st.session_state["sesion"] is None:
     logo_b64 = obtener_logo_base64()
-    if logo_b64:
-        img_login_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height: 60px; object-fit: contain; margin-bottom: 12px;" alt="DiSys Logo">'
-    else:
-        img_login_tag = ''
+    img_login_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height: 60px; object-fit: contain; margin-bottom: 12px;" alt="DiSys Logo">' if logo_b64 else ''
 
     st.markdown(f"""
         <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center;">
@@ -43,6 +39,7 @@ if st.session_state["sesion"] is None:
     with st.form("form_login_principal"):
         username = st.text_input("Usuario de Acceso")
         password = st.text_input("Clave / PIN de Seguridad", type="password")
+        recordar = st.checkbox("Recordar sesión en este dispositivo", value=True)
         submit_login = st.form_submit_button("Ingresar al Sistema", type="primary", use_container_width=True)
 
         if submit_login:
@@ -56,7 +53,7 @@ if st.session_state["sesion"] is None:
 
     st.markdown("""
                 <div style="margin-top: 20px; font-size: 11.5px; color: #64748B;">
-                    🔒 Operación Offline-First • Respaldo Cloud Drive<br>
+                    🔒 Sesión persistente • Respaldo Cloud Drive<br>
                     Exclusivo para Cuentas por Cobrar en Bodegas
                 </div>
             </div>
@@ -64,20 +61,19 @@ if st.session_state["sesion"] is None:
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# VISTAS INTERNAS SEGÚN EL ROL DEL USUARIO AUTENTICADO
+# VISTAS INTERNAS CON SESIÓN ACTIVA Y BOTÓN DE RECARGA
 # ==============================================================================
 else:
     sesion = st.session_state["sesion"]
     rol = sesion["rol"]
     db = cargar_db()
 
-    # Obtener nombre de la bodega si aplica
     nombre_b = ""
     if sesion.get("bodega_id"):
         b_inf = db["bodegas"].get(sesion["bodega_id"], {})
         nombre_b = b_inf.get("nombre", "")
 
-    # Barra superior corporativa fija con logo DiSys y semáforo de sincronización
+    # Cabecera corporativa según rol
     if rol == "SUPER_MASTER":
         mostrar_cabecera_corporativa("Panel Super Máster", "Administración Central", True)
     elif rol == "MASTER":
@@ -85,10 +81,13 @@ else:
     else:
         mostrar_cabecera_corporativa("Usuario Empleado", nombre_b, True)
 
-    # Botón flotante superior para Cerrar Sesión
-    col_vacio, col_btn = st.columns([8, 2])
+    # Barra superior con Botón de Recarga de Datos y Cerrar Sesión
+    col_vacio, col_recarga, col_btn = st.columns([6, 2, 2])
+    with col_recarga:
+        if st.button("🔄 Recargar Datos", use_container_width=True):
+            st.rerun()
     with col_btn:
-        if st.button("🚪 Cerrar Sesión"):
+        if st.button("🚪 Cerrar Sesión", use_container_width=True):
             st.session_state["sesion"] = None
             st.rerun()
 
