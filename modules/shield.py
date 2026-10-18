@@ -12,7 +12,18 @@ def obtener_logo_base64():
     return None
 
 def aplicar_blindaje_y_estilos():
-    """Oculta iconos de GitHub/Streamlit, bloquea inspección de código y aplica el tema DiSys."""
+    """Oculta iconos de GitHub, configura metadatos para compartir y aplica el tema DiSys."""
+    
+    # Inyectar etiquetas Open Graph para la vista previa del logo al compartir
+    st.markdown("""
+        <head>
+            <meta property="og:title" content="DiSys CuentaClara | Gestión de Créditos">
+            <meta property="og:description" content="Plataforma profesional para la administración de créditos y cobranzas en bodegas.">
+            <meta property="og:image" content="https://raw.githubusercontent.com/Deibysapp/disys-cuentaclara/main/assets/logo.png">
+            <meta property="og:type" content="website">
+        </head>
+    """, unsafe_allow_html=True)
+
     st.markdown("""
         <style>
             /* ==========================================================
@@ -31,7 +42,6 @@ def aplicar_blindaje_y_estilos():
             .styles_viewerBadge__1yB5_ {display: none !important;}
             a[href*="github.com"] {display: none !important; visibility: hidden !important;}
 
-            /* Ajuste de márgenes superiores para pantalla completa limpia */
             .block-container {
                 padding-top: 0.8rem !important;
                 padding-bottom: 2.5rem !important;
@@ -49,37 +59,6 @@ def aplicar_blindaje_y_estilos():
                 --disys-red: #EF4444;
             }
 
-            /* Cabecera Corporativa Superior */
-            .disys-topbar {
-                background: linear-gradient(135deg, #0A2239 0%, #13385C 100%);
-                color: #FFFFFF;
-                padding: 14px 22px;
-                border-radius: 14px;
-                border-bottom: 4px solid #F9690E;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                box-shadow: 0 6px 16px rgba(10, 34, 57, 0.15);
-                margin-bottom: 16px;
-                flex-wrap: wrap;
-                gap: 10px;
-            }
-
-            .disys-topbar-brand {
-                display: flex;
-                align-items: center;
-                gap: 14px;
-            }
-
-            .disys-topbar-logo {
-                height: 48px;
-                border-radius: 8px;
-                background: #FFFFFF;
-                padding: 4px 10px;
-                object-fit: contain;
-            }
-
-            /* Tarjetas de Resumen y Contenedores */
             .disys-card {
                 background: #FFFFFF;
                 border-radius: 12px;
@@ -94,30 +73,6 @@ def aplicar_blindaje_y_estilos():
                 border-left: 5px solid #F9690E !important;
             }
 
-            /* Semáforo de Sincronización Offline / Online */
-            .badge-sync-ok {
-                background-color: #D1FAE5;
-                color: #065F46;
-                border: 1px solid #10B981;
-                padding: 6px 14px;
-                border-radius: 20px;
-                font-size: 12.5px;
-                font-weight: 700;
-                display: inline-block;
-            }
-
-            .badge-sync-pending {
-                background-color: #FEF3C7;
-                color: #92400E;
-                border: 1px solid #F59E0B;
-                padding: 6px 14px;
-                border-radius: 20px;
-                font-size: 12.5px;
-                font-weight: 700;
-                display: inline-block;
-            }
-
-            /* Botones Principales Naranja DiSys */
             div.stButton > button[kind="primary"] {
                 background-color: #F9690E !important;
                 color: #FFFFFF !important;
@@ -133,9 +88,6 @@ def aplicar_blindaje_y_estilos():
         </style>
     """, unsafe_allow_html=True)
 
-    # ==========================================================
-    # 3. BLOQUEO DE CLIC DERECHO Y ATAJOS DE INSPECCIÓN (F12)
-    # ==========================================================
     components.html("""
         <script>
             const parentDoc = window.parent.document;
@@ -161,13 +113,13 @@ def mostrar_cabecera_corporativa(titulo_vista, subtitulo_bodega="", estado_sincr
         img_tag = '<span style="font-size:24px; font-weight:900; color:#FFFFFF;">DiSys <span style="color:#F9690E;">CuentaClara</span></span>'
 
     if estado_sincronizado:
-        badge_html = '<span class="badge-sync-ok">✅ Información enviada / Carga exitosa</span>'
+        badge_html = '<span style="background-color: #D1FAE5; color: #065F46; border: 1px solid #10B981; padding: 6px 14px; border-radius: 20px; font-size: 12.5px; font-weight: 700; display: inline-block;">✅ Sincronizado</span>'
     else:
-        badge_html = '<span class="badge-sync-pending">⏳ Guardado local - Pendiente por sincronizar</span>'
+        badge_html = '<span style="background-color: #FEF3C7; color: #92400E; border: 1px solid #F59E0B; padding: 6px 14px; border-radius: 20px; font-size: 12.5px; font-weight: 700; display: inline-block;">⏳ Pendiente</span>'
 
     st.markdown(f"""
-        <div class="disys-topbar">
-            <div class="disys-topbar-brand">
+        <div style="background: linear-gradient(135deg, #0A2239 0%, #13385C 100%); color: #FFFFFF; padding: 14px 22px; border-radius: 14px; border-bottom: 4px solid #F9690E; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 6px 16px rgba(10, 34, 57, 0.15); margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 14px;">
                 {img_tag}
                 <div>
                     <div style="font-size: 18px; font-weight: 800; color: #FFFFFF; line-height: 1.2;">
