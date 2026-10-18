@@ -1,7 +1,84 @@
 import streamlit as st
+import urllib.parse
 from datetime import datetime
 from modules.database import cargar_db, guardar_db, encolar_y_sincronizar, solo_fecha_str, fecha_actual_str
 from modules.whatsapp import formatear_cop, link_whatsapp_nueva_deuda
+
+
+def _limpiar_telefono_wa(telefono):
+    """Normaliza el número telefónico para enlaces wa.me."""
+    num = "".join(c for c in str(telefono or "") if c.isdigit())
+    if not num:
+        return ""
+    if num.startswith("0"):
+        num = "58" + num[1:]
+    elif len(num) == 10 and num.startswith("3"):
+        num = "57" + num
+    elif len(num) == 10 and num.startswith("4"):
+        num = "58" + num
+    return num
+
+
+def generar_link_wa_nueva_deuda_empleado(nombre_bodega, cliente_nombre, telefono, monto_compra, nuevo_saldo, detalle_compra, empleado_nombre, fecha_hora):
+    """Genera enlace de WhatsApp al registrar un nuevo cargo indicando fecha, hora y empleado."""
+    num = _limpiar_telefono_wa(telefono)
+    det_txt = detalle_compra.strip() if detalle_compra and detalle_compra.strip() else "Compra a crédito en mostrador"
+    mensaje = (
+        f"🛒 *NUEVO CARGO A CRÉDITO - {nombre_bodega}*\n\n"
+        f"Hola *{cliente_nombre}*, se ha registrado una compra en tu cuenta:\n"
+        f"• *Fecha y Hora:* {fecha_hora}\n"
+        f"• *Atendido por:* {empleado_nombre}\n"
+        f"• *Monto de la compra:* {formatear_cop(monto_compra)}\n"
+        f"• *Detalle:* {det_txt}\n\n"
+        f"💰 *Saldo Total Acumulado:* *{formatear_cop(nuevo_saldo)}*\n\n"
+        f"_Gracias por tu compra • DiSys CuentaClara_"
+    )
+    texto_encoded = urllib.parse.quote(mensaje)
+    return f"https://wa.me/{num}?text={texto_encoded}"
+
+
+def generar_link_wa_detalle_deuda_empleado(nombre_bodega, cliente, movimientos_cliente):
+    """Genera enlace de WhatsApp con el desglose detallado de la deuda (Monto, Fecha, Hora y Empleado)."""
+    num = _limpiar_telefono_wa(cliente.get("telefono", ""))
+    lineas_detalle = []
+
+    for m in movimientos_cliente:
+        tipo = m.get("tipo", "DEUDA")
+        fecha_str = m.get("fecha", "S/F")
+        hora_str = m.get("hora", "")
+        fecha_hora_mostrar = f"{fecha_str} {hora_str}".strip()
+        monto = m.get("monto_cop", 0)
+        operador = m.get("usuario_registro", "Mostrador")
+        detalle_prod = m.get("detalle", "Compra a crédito")
+
+        if tipo in ["DEUDA", "SALDO_INICIAL", "CARGO"]:
+            etiqueta = "📓 Saldo Inicial" if tipo == "SALDO_INICIAL" else "🛒 Cargo"
+            lineas_detalle.append(
+                f"• *{fecha_hora_mostrar}* | {etiqueta}: *{formatear_cop(monto)}*\n"
+                f"  _Detalle:_ {detalle_prod}\n"
+                f"  _Cargado por:_ {operador}"
+            )
+        elif tipo == "PAGO":
+            lineas_detalle.append(
+                f"• *{fecha_hora_mostrar}* | ✅ Abono recibido: *-{formatear_cop(monto)}* _(Recibido por: {operador})_"
+            )
+
+    cuerpo_movs = "\n\n".join(lineas_detalle) if lineas_detalle else "• Sin movimientos detallados registrados."
+    saldo_total = cliente.get("saldo_cop", 0)
+
+    mensaje = (
+        f"📋 *ESTADO DE CUENTA DETALLADO - {nombre_bodega}*\n"
+        f"Cliente: *{cliente.get('nombre', '')}* (C.I: {cliente.get('cedula', '')})\n\n"
+        f"*Historial de movimientos registrados:*\n"
+        f"{cuerpo_movs}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💰 *SALDO TOTAL PENDIENTE: {formatear_cop(saldo_total)}*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"_Control transparente con DiSys CuentaClara_"
+    )
+    texto_encoded = urllib.parse.quote(mensaje)
+    return f"https://wa.me/{num}?text={texto_encoded}"
+
 
 def render_empleado_view(sesion):
     db = cargar_db()
@@ -33,7 +110,7 @@ def render_empleado_view(sesion):
 
     cliente_seleccionado = None
     if clientes_filtrados:
-        nombres_map = {f"{c['nombre']} (Cédula: {c['cedula']}) - Saldo: {formatear_cop(c.get('saldo_cop',0))}": c for c in clientes_filtrados}
+        nombres_map = {f"{c['nombre']} (Cédula: {c['cedula']}) - Saldo: {formatear_cop(c.get('saldo_cop', 0))}": c for c in clientes_filtrados}
         opcion_elegida = st.selectbox("Seleccione el Cliente", options=list(nombres_map.keys()))
         cliente_seleccionado = nombres_map[opcion_elegida]
     else:
@@ -46,6 +123,10 @@ def render_empleado_view(sesion):
         limite = cliente_seleccionado.get("limite_cop", 0)
         saldo_actual = cliente_seleccionado.get("saldo_cop", 0)
         disponible = float("inf") if es_vip else max(0.0, float(limite) - float(saldo_actual))
+
+        # Filtrar el historial de movimientos de este cliente
+        movs_cli = [m for m in db.get("movimientos", []) if m.get("cliente_id") == cliente_seleccionado["id"] and m.get("bodega_id") == bodega_id]
+        url_detalle_wa = generar_link_wa_detalle_deuda_empleado(nombre_bodega, cliente_seleccionado, movs_cli)
 
         st.markdown(f"""
             <div class="disys-card">
@@ -67,6 +148,45 @@ def render_empleado_view(sesion):
                 </div>
             </div>
         """, unsafe_allow_html=True)
+
+        # Opción para enviar el detalle de la deuda por WhatsApp si el cliente lo solicita
+        if saldo_actual > 0:
+            st.markdown(f"""
+                <div style="margin-bottom: 12px;">
+                    <a href="{url_detalle_wa}" target="_blank" style="background: #0A2239; color: white; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 700; display: inline-block; border-left: 4px solid #F9690E;">
+                        📋 Enviar Detalle de Deuda por WhatsApp al Cliente
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
+
+        with st.expander(f"👁️ Ver historial detallado de consumos y abonos ({len(movs_cli)} registros)"):
+            if not movs_cli:
+                st.caption("No hay movimientos registrados para este cliente todavía.")
+            else:
+                for m in reversed(movs_cli):
+                    f_m = m.get("fecha", "")
+                    h_m = m.get("hora", "")
+                    fh_txt = f"{f_m} {h_m}".strip()
+                    op_m = m.get("usuario_registro", "Mostrador")
+                    det_m = m.get("detalle", "")
+                    mon_m = formatear_cop(m.get("monto_cop", 0))
+                    if m.get("tipo") == "PAGO":
+                        st.markdown(f"✅ **ABONO/PAGO:** `{mon_m}` | 📅 {fh_txt} | 👤 Recibido por: **{op_m}** | _{det_m}_")
+                    else:
+                        st.markdown(f"🛒 **CARGO:** `{mon_m}` | 📅 {fh_txt} | 👨‍💼 Cargado por: **{op_m}** | _{det_m}_")
+
+        # Mostrar comprobante de la última deuda cargada si existe en sesión
+        if "ultimo_cargo_emp_wa" in st.session_state and st.session_state["ultimo_cargo_emp_wa"]:
+            uc = st.session_state["ultimo_cargo_emp_wa"]
+            if uc.get("cliente_id") == cliente_seleccionado["id"]:
+                st.markdown(f"""
+                    <div style="margin: 12px 0; padding: 14px; background: #D1FAE5; border: 1px solid #10B981; border-radius: 10px; text-align: center;">
+                        <b style="color: #065F46;">📲 ¡Deuda registrada por {formatear_cop(uc['monto'])}! Comprobante listo para enviar:</b><br><br>
+                        <a href="{uc['url_w']}" target="_blank" style="background: #25D366; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 700; display: inline-block;">
+                            Enviar Comprobante al Cliente por WhatsApp 🚀
+                        </a>
+                    </div>
+                """, unsafe_allow_html=True)
 
         # Formulario para registrar la deuda
         with st.form("form_cargar_deuda_empleado"):
@@ -99,59 +219,71 @@ def render_empleado_view(sesion):
                 if monto_compra <= 0:
                     st.error("El monto de la compra debe ser mayor a cero.")
                 elif excede_limite:
-                    # Registrar solicitud de sobregiro pendiente
+                    ahora_dt = datetime.now()
+                    # Registrar solicitud de sobregiro pendiente con nombre de empleado y detalle
                     db["solicitudes_sobregiro"].append({
-                        "id": "sob_" + str(datetime.now().timestamp()),
+                        "id": "sob_" + str(ahora_dt.timestamp()),
                         "bodega_id": bodega_id,
                         "cliente_id": cliente_seleccionado["id"],
                         "cliente_nombre": cliente_seleccionado["nombre"],
                         "monto_solicitado": monto_compra,
+                        "detalle": detalle_compra or "Compra en mostrador",
                         "empleado": sesion["nombre"],
-                        "fecha": fecha_actual_str(),
+                        "empleado_nombre": sesion["nombre"],
+                        "usuario_registro": sesion["nombre"],
+                        "fecha": solo_fecha_str(),
+                        "hora": ahora_dt.strftime("%I:%M %p"),
                         "estado": "PENDIENTE"
                     })
                     guardar_db(db)
-                    st.warning("⏳ Solicitud de sobregiro enviada al Usuario Máster. Espere que el dueño autorice desde su panel para reintentar.")
+                    st.warning("⏳ Solicitud de sobregiro enviada al Usuario Máster. Espere que el dueño autorice desde su panel para continuar.")
                 else:
+                    ahora_dt = datetime.now()
+                    fecha_str = solo_fecha_str()
+                    hora_str = ahora_dt.strftime("%I:%M %p")
+                    fh_completa = f"{fecha_str} {hora_str}"
+
                     # Actualizar saldo del cliente
                     nuevo_saldo = float(cliente_seleccionado.get("saldo_cop", 0)) + float(monto_compra)
                     cliente_seleccionado["saldo_cop"] = nuevo_saldo
                     if not cliente_seleccionado.get("fecha_deuda_activa"):
-                        cliente_seleccionado["fecha_deuda_activa"] = solo_fecha_str()
+                        cliente_seleccionado["fecha_deuda_activa"] = fecha_str
 
-                    # Registrar movimiento
+                    # Registrar movimiento con fecha, hora y nombre del empleado
                     movimiento = {
-                        "id": "mov_" + str(datetime.now().timestamp()),
+                        "id": "mov_" + str(ahora_dt.timestamp()),
                         "bodega_id": bodega_id,
                         "tipo": "DEUDA",
                         "cliente_id": cliente_seleccionado["id"],
                         "cliente_nombre": cliente_seleccionado["nombre"],
                         "cliente_cedula": cliente_seleccionado["cedula"],
                         "monto_cop": monto_compra,
-                        "detalle": detalle_compra,
+                        "detalle": detalle_compra or "Compra a crédito en mostrador",
                         "usuario_registro": sesion["nombre"],
-                        "fecha": fecha_actual_str(),
+                        "fecha": fecha_str,
+                        "hora": hora_str,
                         "saldo_resultante_cop": nuevo_saldo
                     }
                     db["movimientos"].append(movimiento)
                     encolar_y_sincronizar(db, bodega_id, "NUEVA_DEUDA", movimiento)
 
-                    st.success("¡Deuda registrada y guardada exitosamente!")
-
-                    # Generar enlace directo para WhatsApp
-                    url_w = link_whatsapp_nueva_deuda(
-                        nombre_bodega,
-                        cliente_seleccionado["nombre"],
-                        cliente_seleccionado["telefono"],
-                        monto_compra,
-                        nuevo_saldo,
-                        detalle_compra
+                    # Generar enlace directo para WhatsApp incluyendo fecha, hora y empleado
+                    url_w = generar_link_wa_nueva_deuda_empleado(
+                        nombre_bodega=nombre_bodega,
+                        cliente_nombre=cliente_seleccionado["nombre"],
+                        telefono=cliente_seleccionado["telefono"],
+                        monto_compra=monto_compra,
+                        nuevo_saldo=nuevo_saldo,
+                        detalle_compra=detalle_compra,
+                        empleado_nombre=sesion["nombre"],
+                        fecha_hora=fh_completa
                     )
-                    st.markdown(f"""
-                        <div style="margin-top: 15px; padding: 14px; background: #D1FAE5; border-radius: 10px; text-align: center;">
-                            <b>📲 ¡Comprobante listo para enviar por WhatsApp!</b><br><br>
-                            <a href="{url_w}" target="_blank" style="background: #25D366; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 700; display: inline-block;">
-                                Enviar Comprobante al Cliente 🚀
-                            </a>
-                        </div>
-                    """, unsafe_allow_html=True)
+
+                    st.session_state["ultimo_cargo_emp_wa"] = {
+                        "cliente_id": cliente_seleccionado["id"],
+                        "monto": monto_compra,
+                        "url_w": url_w
+                    }
+
+                    st.success("¡Deuda registrada y guardada exitosamente!")
+                    st.rerun()
