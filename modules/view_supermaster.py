@@ -1,8 +1,9 @@
 import streamlit as st
+import uuid
 from modules.database import cargar_db, guardar_db, generar_excel_respaldo, solo_fecha_str
 
 def render_super_master_view(sesion):
-    db = cargar_db()
+      db = cargar_db()
     
     st.markdown("""
         <div style="background: linear-gradient(135deg, #0A2239 0%, #13385C 100%); color: #FFFFFF; padding: 22px; border-radius: 14px; border-left: 6px solid #F9690E; margin-bottom: 20px;">
