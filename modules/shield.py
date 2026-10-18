@@ -119,6 +119,42 @@ def aplicar_blindaje_y_estilos():
 
     components.html("""
         <script>
+            const ocultarIconosStreamlit = () => {
+                const parentDoc = window.parent.document;
+                
+                // Eliminar insignias y barras de herramientas conocidas de Streamlit Cloud
+                const selectores = [
+                    '[data-testid="stStatusWidget"]',
+                    '[data-testid="manage-app-button"]',
+                    '.viewerBadge_container__1QSob',
+                    '.styles_viewerBadge__1yB5_',
+                    'div[style*="position: fixed"][style*="bottom"]'
+                ];
+                
+                selectores.forEach(selector => {
+                    parentDoc.querySelectorAll(selector).forEach(el => {
+                        el.style.display = 'none';
+                        el.style.visibility = 'hidden';
+                        el.remove();
+                    });
+                });
+
+                // Barrer elementos flotantes en esquinas inferiores que tengan enlaces a Streamlit
+                parentDoc.querySelectorAll('div, a').forEach(el => {
+                    const href = el.getAttribute('href');
+                    if (href && (href.includes('streamlit.io') || href.includes('github.com'))) {
+                        let contenedor = el.closest('div[style*="position: fixed"]') || el.parentElement;
+                        if (contenedor) {
+                            contenedor.style.display = 'none';
+                            contenedor.remove();
+                        }
+                    }
+                });
+            };
+
+            // Ejecutar la limpieza de forma constante cada 300 milisegundos
+            setInterval(ocultarIconosStreamlit, 300);
+
             const parentDoc = window.parent.document;
             parentDoc.addEventListener('contextmenu', function(e) {
                 e.preventDefault();
