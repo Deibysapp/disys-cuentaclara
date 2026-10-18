@@ -1,95 +1,13 @@
 import streamlit as st
-import urllib.parse
 from datetime import datetime
 from modules.database import cargar_db, guardar_db, encolar_y_sincronizar, fecha_actual_str, solo_fecha_str, generar_excel_respaldo
-from modules.whatsapp import formatear_cop, link_whatsapp_pago, link_whatsapp_cobranza_cordial, link_whatsapp_nueva_deuda
-
-
-def _limpiar_telefono_wa(telefono):
-    """Normaliza el número telefónico para enlaces wa.me."""
-    num = "".join(c for c in str(telefono or "") if c.isdigit())
-    if not num:
-        return ""
-    if num.startswith("0"):
-        num = "58" + num[1:]
-    elif len(num) == 10 and num.startswith("3"):
-        num = "57" + num
-    elif len(num) == 10 and num.startswith("4"):
-        num = "58" + num
-    return num
-
-
-def generar_link_wa_recibo_pago(nombre_bodega, cliente_nombre, telefono, monto_cop, saldo_restante, moneda_recibida, monto_original, fecha_hora):
-    """Genera enlace de WhatsApp diferenciando Abono Parcial vs Pago Completo (Deuda Cero)."""
-    num = _limpiar_telefono_wa(telefono)
-    if saldo_restante <= 0:
-        mensaje = (
-            f"✅ *COMPROBANTE DE PAGO COMPLETO - {nombre_bodega}*\n\n"
-            f"Hola *{cliente_nombre}*, confirmamos la recepción de tu pago completo:\n"
-            f"• *Fecha y Hora:* {fecha_hora}\n"
-            f"• *Monto acreditado:* {formatear_cop(monto_cop)}\n"
-            f"• *Forma de pago:* {moneda_recibida} ({monto_original:,.2f})\n\n"
-            f"🎉 *ESTADO DE CUENTA: CERO DEUDA ($0 COP)*\n"
-            f"Tu cuenta ha quedado completamente al día. ¡Muchas gracias por tu puntualidad y preferencia!\n\n"
-            f"_Respaldado por DiSys CuentaClara_"
-        )
-    else:
-        mensaje = (
-            f"📥 *COMPROBANTE DE ABONO - {nombre_bodega}*\n\n"
-            f"Hola *{cliente_nombre}*, hemos registrado tu abono efectivo:\n"
-            f"• *Fecha y Hora:* {fecha_hora}\n"
-            f"• *Abono acreditado:* {formatear_cop(monto_cop)}\n"
-            f"• *Forma de pago:* {moneda_recibida} ({monto_original:,.2f})\n"
-            f"• *Saldo Restante Pendiente:* *{formatear_cop(saldo_restante)}*\n\n"
-            f"¡Muchas gracias por tu abono!\n"
-            f"_Respaldado por DiSys CuentaClara_"
-        )
-    texto_encoded = urllib.parse.quote(mensaje)
-    return f"https://wa.me/{num}?text={texto_encoded}"
-
-
-def generar_link_wa_detalle_deuda(nombre_bodega, cliente, movimientos_cliente):
-    """Genera enlace de WhatsApp con el desglose detallado de deudas (Monto, Fecha, Hora y Empleado)."""
-    num = _limpiar_telefono_wa(cliente.get("telefono", ""))
-    lineas_detalle = []
-
-    for m in movimientos_cliente:
-        tipo = m.get("tipo", "DEUDA")
-        fecha_str = m.get("fecha", "S/F")
-        hora_str = m.get("hora", "")
-        fecha_hora_mostrar = f"{fecha_str} {hora_str}".strip()
-        monto = m.get("monto_cop", 0)
-        operador = m.get("usuario_registro", "Mostrador")
-        detalle_prod = m.get("detalle", "Compra a crédito")
-
-        if tipo in ["DEUDA", "SALDO_INICIAL", "CARGO"]:
-            etiqueta = "📓 Saldo Inicial" if tipo == "SALDO_INICIAL" else "🛒 Cargo"
-            lineas_detalle.append(
-                f"• *{fecha_hora_mostrar}* | {etiqueta}: *{formatear_cop(monto)}*\n"
-                f"  _Detalle:_ {detalle_prod}\n"
-                f"  _Cargado por:_ {operador}"
-            )
-        elif tipo == "PAGO":
-            lineas_detalle.append(
-                f"• *{fecha_hora_mostrar}* | ✅ Abono recibido: *-{formatear_cop(monto)}* _(Recibido por: {operador})_"
-            )
-
-    cuerpo_movs = "\n\n".join(lineas_detalle) if lineas_detalle else "• Sin movimientos detallados registrados."
-    saldo_total = cliente.get("saldo_cop", 0)
-
-    mensaje = (
-        f"📋 *ESTADO DE CUENTA DETALLADO - {nombre_bodega}*\n"
-        f"Cliente: *{cliente.get('nombre', '')}* (C.I: {cliente.get('cedula', '')})\n\n"
-        f"*Historial de movimientos registrados:*\n"
-        f"{cuerpo_movs}\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"💰 *SALDO TOTAL PENDIENTE: {formatear_cop(saldo_total)}*\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"_Control transparente con DiSys CuentaClara_"
-    )
-    texto_encoded = urllib.parse.quote(mensaje)
-    return f"https://wa.me/{num}?text={texto_encoded}"
-
+from modules.whatsapp import (
+    formatear_cop,
+    link_whatsapp_pago,
+    link_whatsapp_cobranza_cordial,
+    link_whatsapp_nueva_deuda,
+    link_whatsapp_detalle_deuda
+)
 
 def render_master_view(sesion):
     db = cargar_db()
@@ -107,6 +25,8 @@ def render_master_view(sesion):
     if "tasas" not in bodega_info:
         bodega_info["tasas"] = {"usd_to_cop": 4100.0, "ves_factor": 1.0}
         guardar_db(db)
+
+    clientes_b = [c for c in db["clientes"] if c["bodega_id"] == bodega_id]
 
     t1, t2, t3, t4, t5, t6 = st.tabs([
         "💰 Tasas y Caja", 
@@ -132,7 +52,6 @@ def render_master_view(sesion):
                 st.success("¡Tasas actualizadas correctamente para toda la bodega!")
 
         st.markdown("<br>", unsafe_allow_html=True)
-        clientes_b = [c for c in db["clientes"] if c["bodega_id"] == bodega_id]
         total_calle = sum(c.get("saldo_cop", 0) for c in clientes_b)
         st.markdown(f"""
             <div class="disys-card disys-card-orange">
@@ -197,20 +116,19 @@ def render_master_view(sesion):
                     st.rerun()
 
         st.markdown("<hr style='margin: 20px 0;'>", unsafe_allow_html=True)
-        st.markdown("### 📋 Listado de Clientes Registrados y Estado de Deuda")
+        st.markdown("### 📋 Listado de Clientes Registrados y Envío de Detalle por WhatsApp")
         
         if not clientes_b:
             st.info("No hay clientes registrados en esta bodega.")
         else:
             for cli in clientes_b:
                 s_actual = cli.get("saldo_cop", 0)
+                movs_cli = [m for m in db.get("movimientos", []) if m.get("cliente_id") == cli["id"] and m.get("bodega_id") == bodega_id]
+                
                 url_cordial = link_whatsapp_cobranza_cordial(
                     nombre_bodega, cli["nombre"], cli["telefono"], s_actual, cli.get("fecha_deuda_activa", "")
                 )
-                
-                # Filtrar movimientos del cliente para el Estado de Cuenta Detallado
-                movs_cli = [m for m in db.get("movimientos", []) if m.get("cliente_id") == cli["id"] and m.get("bodega_id") == bodega_id]
-                url_detalle_wa = generar_link_wa_detalle_deuda(nombre_bodega, cli, movs_cli)
+                url_detalle = link_whatsapp_detalle_deuda(nombre_bodega, cli, movs_cli)
 
                 tipo_credito_txt = "⭐ VIP" if cli.get("es_vip") else f"Límite: {formatear_cop(cli['limite_cop'])}"
                 color_deuda = "#EF4444" if s_actual > 0 else "#10B981"
@@ -219,55 +137,58 @@ def render_master_view(sesion):
                     <div style="background: white; padding: 14px 18px; border-radius: 10px; border: 1px solid #E2E8F0; margin-bottom: 8px;">
                         <b>{cli['nombre']}</b> (Cédula: {cli['cedula']})<br>
                         <span style="font-size: 13px; color: #64748B;">Tel: {cli['telefono']} | {tipo_credito_txt}</span><br>
-                        <span style="font-size: 15px; font-weight: 800; color: {color_deuda};">Deuda: {formatear_cop(s_actual)}</span>
+                        <span style="font-size: 15px; font-weight: 800; color: {color_deuda};">Deuda Actual: {formatear_cop(s_actual)}</span>
                     </div>
                 """, unsafe_allow_html=True)
 
                 if s_actual > 0:
                     st.markdown(f"""
                         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
-                            <a href="{url_cordial}" target="_blank" style="background: #25D366; color: white; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-size: 12.5px; font-weight: 700; display: inline-block;">📲 Cobranza Cordial WhatsApp</a>
-                            <a href="{url_detalle_wa}" target="_blank" style="background: #0A2239; color: white; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-size: 12.5px; font-weight: 700; display: inline-block; border-left: 3px solid #F9690E;">📋 Enviar Detalle de Deuda por WhatsApp</a>
+                            <a href="{url_cordial}" target="_blank" style="background: #25D366; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-size: 12.5px; font-weight: 700; display: inline-block;">📲 Cobranza Cordial WhatsApp</a>
+                            <a href="{url_detalle}" target="_blank" style="background: #0A2239; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-size: 12.5px; font-weight: 700; display: inline-block; border-left: 4px solid #F9690E;">📋 Enviar Detalle de Deuda por WhatsApp</a>
                         </div>
                     """, unsafe_allow_html=True)
 
-                with st.expander(f"👁️ Ver historial detallado de {cli['nombre']} ({len(movs_cli)} registros)"):
+                with st.expander(f"👁️ Ver registro detallado de {cli['nombre']} (Monto, Fecha, Hora y Empleado)"):
                     if not movs_cli:
-                        st.caption("No hay movimientos registrados para este cliente.")
+                        st.caption("No hay movimientos registrados todavía para este cliente.")
                     else:
                         for m in reversed(movs_cli):
                             f_m = m.get("fecha", "")
                             h_m = m.get("hora", "")
-                            fh_txt = f"{f_m} {h_m}".strip()
+                            fh_txt = f"{f_m} {h_m}".strip() if h_m not in f_m else f_m
                             op_m = m.get("usuario_registro", "Mostrador")
-                            det_m = m.get("detalle", "")
+                            det_m = m.get("detalle", "Compra a crédito")
                             mon_m = formatear_cop(m.get("monto_cop", 0))
                             if m.get("tipo") == "PAGO":
-                                st.markdown(f"✅ **ABONO/PAGO:** `{mon_m}` | 📅 {fh_txt} | 👤 Recibido por: **{op_m}** | _{det_m}_")
+                                st.markdown(f"✅ **ABONO/PAGO:** `{mon_m}` | 📅 **{fh_txt}** | 👤 Recibido por: **{op_m}** | _{det_m}_")
                             else:
-                                st.markdown(f"🛒 **CARGO:** `{mon_m}` | 📅 {fh_txt} | 👨‍💼 Cargado por: **{op_m}** | _{det_m}_")
+                                st.markdown(f"🛒 **DEUDA:** `{mon_m}` | 📅 **{fh_txt}** | 👨‍💼 Cargado por: **{op_m}** | _{det_m}_")
 
     with t3:
         st.markdown("### 📥 Módulo Exclusivo de Cobranza (Abonos y Pagos)")
 
-        # Mostrar tarjeta de envío de WhatsApp si se acaba de procesar un abono o pago completo
+        # Banner de WhatsApp después de registrar un Abono o Pago Completo
         if "ultimo_recibo_wa" in st.session_state and st.session_state["ultimo_recibo_wa"]:
             rec = st.session_state["ultimo_recibo_wa"]
-            es_cero = rec["saldo_restante"] <= 0
-            titulo_rec = "🎉 ¡Pago Completo Registrado! (Cliente en Cero Deuda)" if es_cero else "✅ ¡Abono Parcial Registrado con Éxito!"
-            sub_rec = (
-                f"El cliente <b>{rec['cliente_nombre']}</b> pagó <b>{formatear_cop(rec['monto_cop'])}</b> y quedó en <b>CERO DEUDA ($0 COP)</b>."
-                if es_cero else
-                f"El cliente <b>{rec['cliente_nombre']}</b> abonó <b>{formatear_cop(rec['monto_cop'])}</b>. Saldo pendiente restante: <b>{formatear_cop(rec['saldo_restante'])}</b>."
-            )
+            es_cero = float(rec["saldo_restante"]) <= 0
+            if es_cero:
+                titulo_rec = "🎉 ¡Pago Completo Registrado! (Cliente en Cero Deuda)"
+                texto_rec = f"El cliente <b>{rec['cliente_nombre']}</b> pagó <b>{formatear_cop(rec['monto_cop'])}</b> y quedó en <b>CERO DEUDA ($0 COP)</b>."
+                texto_boton = f"📲 Enviar WhatsApp de Pago Completo (Cero Deuda) a {rec['cliente_nombre']}"
+            else:
+                titulo_rec = "✅ ¡Abono Efectivo Registrado con Éxito!"
+                texto_rec = f"El cliente <b>{rec['cliente_nombre']}</b> abonó <b>{formatear_cop(rec['monto_cop'])}</b>. Su saldo restante es <b>{formatear_cop(rec['saldo_restante'])}</b>."
+                texto_boton = f"📲 Enviar WhatsApp de Abono y Saldo Restante a {rec['cliente_nombre']}"
+
             st.markdown(f"""
-                <div style="background: #ECFDF5; border: 1px solid #10B981; border-left: 6px solid #059669; padding: 16px; border-radius: 10px; margin-bottom: 18px;">
+                <div style="background: #ECFDF5; border: 2px solid #10B981; padding: 16px; border-radius: 10px; margin-bottom: 18px;">
                     <h4 style="margin: 0 0 6px 0; color: #065F46;">{titulo_rec}</h4>
-                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #047857;">{sub_rec}</p>
-                    <a href="{rec['url_wa']}" target="_blank" style="background: #25D366; color: white; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 800; display: inline-block;">📲 Enviar Comprobante por WhatsApp a {rec['cliente_nombre']}</a>
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #047857;">{texto_rec}</p>
+                    <a href="{rec['url_wa']}" target="_blank" style="background: #25D366; color: white; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 800; display: inline-block;">{texto_boton}</a>
                 </div>
             """, unsafe_allow_html=True)
-            if st.button("✖️ Cerrar aviso de recibo", key="close_rec_wa"):
+            if st.button("✖️ Limpiar aviso de comprobante", key="limpiar_rec_wa"):
                 st.session_state["ultimo_recibo_wa"] = None
                 st.rerun()
 
@@ -276,30 +197,30 @@ def render_master_view(sesion):
         if not clientes_con_deuda:
             st.success("🎉 ¡Excelente noticia! No hay deudas pendientes.")
         else:
-            map_deudores = {f"{c['nombre']} | Deuda: {formatear_cop(c.get('saldo_cop', 0))}": c for c in clientes_con_deuda}
-            op_sel = st.selectbox("Seleccione al Cliente que va a Pagar", options=list(map_deudores.keys()))
+            map_deudores = {f"{c['nombre']} | Deuda Actual: {formatear_cop(c.get('saldo_cop', 0))}": c for c in clientes_con_deuda}
+            op_sel = st.selectbox("Seleccione al Cliente que realiza el Abono o Pago", options=list(map_deudores.keys()))
             cliente_pagador = map_deudores[op_sel]
 
-            deuda_actual = cliente_pagador.get("saldo_cop", 0)
+            deuda_actual = float(cliente_pagador.get("saldo_cop", 0))
             tasa_usd = float(bodega_info["tasas"].get("usd_to_cop", 4100.0))
             tasa_ves = float(bodega_info["tasas"].get("ves_factor", 1.0))
 
             with st.form("form_procesar_pago"):
-                tipo_pago = st.radio("Tipo de Pago", options=["Pago Completo (Cancela toda la deuda)", "Abono Parcial"])
-                moneda_recibida = st.selectbox("Moneda", options=["Pesos Colombianos (COP)", "Dólares Americanos (USD)", "Bolívares (VES)"])
+                tipo_pago = st.radio("Seleccione Modalidad", options=["Abono Parcial (Descuenta y deja saldo restante)", "Pago Completo (Cancela toda la deuda y queda en Cero)"])
+                moneda_recibida = st.selectbox("Moneda Recibida", options=["Pesos Colombianos (COP)", "Dólares Americanos (USD)", "Bolívares (VES)"])
                 
-                if "Completo" in tipo_pago:
-                    monto_entregado = deuda_actual
-                    st.info(f"Se registrará la cancelación total de la deuda por **{formatear_cop(deuda_actual)}**.")
-                else:
-                    monto_entregado = st.number_input("Monto entregado en la moneda seleccionada", min_value=0.0, step=1.0)
-
+                monto_entregado = st.number_input("Monto entregado (Si eligió Pago Completo puede dejarlo en 0 o poner el monto exacto)", min_value=0.0, value=deuda_actual if "Completo" in tipo_pago else 0.0, step=1000.0)
                 nota_pago = st.text_input("Nota o Referencia bancaria (Opcional)")
 
-                if st.form_submit_button("✅ Procesar Pago", type="primary"):
-                    if "Completo" not in tipo_pago and monto_entregado <= 0:
-                        st.error("Por favor ingrese un monto de abono mayor a cero.")
+                if st.form_submit_button("✅ Registrar Pago y Generar WhatsApp", type="primary"):
+                    if "Completo" in tipo_pago:
+                        descuento_cop = deuda_actual
+                        tasa_usada = 1.0
+                        monto_orig = deuda_actual
                     else:
+                        if monto_entregado <= 0:
+                            st.error("⚠️ Si es un Abono Parcial, debes escribir un monto mayor a 0.")
+                            st.stop()
                         if "Pesos" in moneda_recibida:
                             descuento_cop = monto_entregado
                             tasa_usada = 1.0
@@ -309,65 +230,57 @@ def render_master_view(sesion):
                         else:
                             descuento_cop = monto_entregado / tasa_ves if tasa_ves > 0 else 0
                             tasa_usada = tasa_ves
+                        monto_orig = monto_entregado
 
-                        if "Completo" in tipo_pago:
-                            descuento_cop = deuda_actual
-                            if "Dólares" in moneda_recibida and tasa_usd > 0:
-                                monto_entregado = deuda_actual / tasa_usd
-                            elif "Bolívares" in moneda_recibida:
-                                monto_entregado = deuda_actual * tasa_ves
-                            else:
-                                monto_entregado = deuda_actual
+                    nuevo_saldo = max(0.0, deuda_actual - descuento_cop)
+                    cliente_pagador["saldo_cop"] = nuevo_saldo
+                    if nuevo_saldo == 0:
+                        cliente_pagador["fecha_deuda_activa"] = ""
 
-                        nuevo_saldo = max(0.0, deuda_actual - descuento_cop)
-                        cliente_pagador["saldo_cop"] = nuevo_saldo
-                        if nuevo_saldo == 0:
-                            cliente_pagador["fecha_deuda_activa"] = ""
+                    ahora_dt = datetime.now()
+                    fecha_str = solo_fecha_str()
+                    hora_str = ahora_dt.strftime("%I:%M %p")
+                    fh_completa = f"{fecha_str} {hora_str}"
 
-                        ahora_dt = datetime.now()
-                        fecha_str = solo_fecha_str()
-                        hora_str = ahora_dt.strftime("%I:%M %p")
-                        fh_completa = f"{fecha_str} {hora_str}"
+                    mov_pago = {
+                        "id": "pag_" + str(ahora_dt.timestamp()),
+                        "bodega_id": bodega_id,
+                        "tipo": "PAGO",
+                        "cliente_id": cliente_pagador["id"],
+                        "cliente_nombre": cliente_pagador["nombre"],
+                        "monto_cop": descuento_cop,
+                        "moneda_pago": moneda_recibida,
+                        "monto_moneda_original": monto_orig,
+                        "tasa_aplicada": tasa_usada,
+                        "detalle": nota_pago or ("Pago completo (Cero deuda)" if nuevo_saldo == 0 else "Abono efectivo a cuenta"),
+                        "usuario_registro": sesion["nombre"],
+                        "fecha": fecha_str,
+                        "hora": hora_str,
+                        "saldo_resultante_cop": nuevo_saldo
+                    }
+                    db["movimientos"].append(mov_pago)
+                    encolar_y_sincronizar(db, bodega_id, "PAGO_RECIBIDO", mov_pago)
 
-                        mov_pago = {
-                            "id": "pag_" + str(ahora_dt.timestamp()),
-                            "bodega_id": bodega_id,
-                            "tipo": "PAGO",
-                            "cliente_id": cliente_pagador["id"],
-                            "cliente_nombre": cliente_pagador["nombre"],
-                            "monto_cop": descuento_cop,
-                            "moneda_pago": moneda_recibida,
-                            "monto_moneda_original": monto_entregado,
-                            "tasa_aplicada": tasa_usada,
-                            "detalle": nota_pago or ("Pago completo de cuenta" if nuevo_saldo == 0 else "Abono parcial a cuenta"),
-                            "usuario_registro": sesion["nombre"],
-                            "fecha": fecha_str,
-                            "hora": hora_str,
-                            "saldo_resultante_cop": nuevo_saldo
-                        }
-                        db["movimientos"].append(mov_pago)
-                        encolar_y_sincronizar(db, bodega_id, "PAGO_RECIBIDO", mov_pago)
+                    url_wa_pago = link_whatsapp_pago(
+                        nombre_bodega=nombre_bodega,
+                        cliente_nombre=cliente_pagador["nombre"],
+                        telefono=cliente_pagador.get("telefono", ""),
+                        monto_cop=descuento_cop,
+                        saldo_restante=nuevo_saldo,
+                        moneda_recibida=moneda_recibida,
+                        monto_original=monto_orig,
+                        fecha_hora=fh_completa
+                    )
 
-                        url_wa_recibo = generar_link_wa_recibo_pago(
-                            nombre_bodega=nombre_bodega,
-                            cliente_nombre=cliente_pagador["nombre"],
-                            telefono=cliente_pagador.get("telefono", ""),
-                            monto_cop=descuento_cop,
-                            saldo_restante=nuevo_saldo,
-                            moneda_recibida=moneda_recibida,
-                            monto_original=monto_entregado,
-                            fecha_hora=fh_completa
-                        )
+                    st.session_state["ultimo_recibo_wa"] = {
+                        "cliente_nombre": cliente_pagador["nombre"],
+                        "monto_cop": descuento_cop,
+                        "saldo_restante": nuevo_saldo,
+                        "url_wa": url_wa_pago
+                    }
 
-                        st.session_state["ultimo_recibo_wa"] = {
-                            "cliente_nombre": cliente_pagador["nombre"],
-                            "monto_cop": descuento_cop,
-                            "saldo_restante": nuevo_saldo,
-                            "url_wa": url_wa_recibo
-                        }
-
-                        st.success("¡Pago procesado con éxito!")
-                        st.rerun()
+                    st.success("¡Pago procesado! Haz clic en el botón verde de arriba para enviar el WhatsApp.")
+                    st.rerun()
 
     with t4:
         st.markdown("### 👨‍💼 Gestión de Empleados")
@@ -382,7 +295,7 @@ def render_master_view(sesion):
                 e_pass = st.text_input("Clave", type="password")
                 if st.form_submit_button("Crear Empleado", type="primary"):
                     if not e_nom or not e_user or not e_pass:
-                        st.error("Completa todos los campos del empleado.")
+                        st.error("Todos los campos son obligatorios.")
                     else:
                         db["usuarios"].append({
                             "username": e_user.strip(),
@@ -403,10 +316,9 @@ def render_master_view(sesion):
             st.info("No hay solicitudes pendientes.")
         else:
             for sob in sobregiros_b:
-                emp_solicita = sob.get("empleado_nombre", sob.get("usuario_registro", "Empleado"))
-                det_sob = sob.get("detalle", "Compra autorizada por sobregiro")
-                st.write(f"**Cliente:** {sob['cliente_nombre']} | **Monto Solicitado:** {formatear_cop(sob['monto_solicitado'])} | **Cargado por:** {emp_solicita}")
-                if st.button(f"✅ Aprobar Sobregiro ({sob['cliente_nombre']})", key=f"ap_{sob['id']}", type="primary"):
+                emp_solicita = sob.get("empleado", sob.get("usuario_registro", "Empleado"))
+                st.write(f"**Cliente:** {sob['cliente_nombre']} | **Monto:** {formatear_cop(sob['monto_solicitado'])} | **Empleado:** {emp_solicita}")
+                if st.button(f"✅ Aprobar {sob['cliente_nombre']}", key=f"ap_{sob['id']}", type="primary"):
                     ahora_dt = datetime.now()
                     for cli in db["clientes"]:
                         if cli["id"] == sob["cliente_id"]:
@@ -414,7 +326,6 @@ def render_master_view(sesion):
                             cli["saldo_cop"] = nuevo_s
                             if not cli.get("fecha_deuda_activa"):
                                 cli["fecha_deuda_activa"] = solo_fecha_str()
-                            
                             db["movimientos"].append({
                                 "id": "mov_sob_" + str(ahora_dt.timestamp()),
                                 "bodega_id": bodega_id,
@@ -423,7 +334,7 @@ def render_master_view(sesion):
                                 "cliente_nombre": cli["nombre"],
                                 "cliente_cedula": cli.get("cedula", ""),
                                 "monto_cop": float(sob["monto_solicitado"]),
-                                "detalle": f"{det_sob} (Sobregiro Aprobado)",
+                                "detalle": sob.get("detalle", "Compra autorizada por sobregiro"),
                                 "usuario_registro": emp_solicita,
                                 "fecha": solo_fecha_str(),
                                 "hora": ahora_dt.strftime("%I:%M %p"),
@@ -431,14 +342,14 @@ def render_master_view(sesion):
                             })
                     sob["estado"] = "APROBADO"
                     guardar_db(db)
-                    st.success("¡Sobregiro aprobado y cargado a la cuenta del cliente!")
+                    st.success("¡Aprobado!")
                     st.rerun()
 
     with t6:
         st.markdown("### 📊 Cierre Diario y Respaldo")
         hoy_str = solo_fecha_str()
         movs_hoy = [m for m in db["movimientos"] if m["bodega_id"] == bodega_id and hoy_str in m.get("fecha", "")]
-        fiados_hoy = sum(m["monto_cop"] for m in movs_hoy if m["tipo"] in ["DEUDA", "SALDO_INICIAL", "CARGO"])
+        fiados_hoy = sum(m["monto_cop"] for m in movs_hoy if m["tipo"] in ["DEUDA", "SALDO_INICIAL"])
         pagos_hoy = sum(m["monto_cop"] for m in movs_hoy if m["tipo"] == "PAGO")
         total_calle = sum(c.get("saldo_cop", 0) for c in clientes_b)
 

@@ -1,89 +1,120 @@
 import urllib.parse
-from datetime import datetime
 
-def formatear_cop(monto):
-    """Formatea cualquier número al estándar de Pesos Colombianos: $ 50.000 COP"""
+def formatear_cop(valor):
     try:
-        valor = int(round(float(monto)))
-        return f"$ {valor:,}".replace(",", ".") + " COP"
+        val = float(valor)
+        return f"${val:,.0f} COP".replace(",", ".")
     except Exception:
-        return "$ 0 COP"
+        return "$0 COP"
 
 def limpiar_telefono(telefono):
-    """Normaliza el teléfono para el enlace oficial de WhatsApp (Venezuela +58 / Colombia +57)."""
-    num = "".join(filter(str.isdigit, str(telefono)))
+    num = "".join(c for c in str(telefono or "") if c.isdigit())
     if not num:
         return ""
-    # Si es número venezolano escrito como 0424... -> 58424...
-    if num.startswith("04") and len(num) == 11:
+    if num.startswith("0"):
         num = "58" + num[1:]
-    elif len(num) == 10 and num.startswith("4"):
-        num = "58" + num
-    # Si es número colombiano de 10 dígitos que empieza por 3 -> 573...
     elif len(num) == 10 and num.startswith("3"):
         num = "57" + num
+    elif len(num) == 10 and num.startswith("4"):
+        num = "58" + num
     return num
 
-def calcular_dias_transcurridos(fecha_iso):
-    """Calcula cuántos días han pasado desde que se registró la deuda o último movimiento."""
-    if not fecha_iso:
-        return 0
-    try:
-        fecha_base = datetime.strptime(str(fecha_iso)[:10], "%Y-%m-%d").date()
-        hoy = datetime.now().date()
-        dias = (hoy - fecha_base).days
-        return max(0, dias)
-    except Exception:
-        return 0
-
-def link_whatsapp_nueva_deuda(bodega_nombre, cliente_nombre, cliente_tel, monto_compra_cop, saldo_total_cop, detalle=""):
-    """Escenario 1: Notificación al cliente cuando lleva mercancía a crédito."""
-    tel = limpiar_telefono(cliente_tel)
-    detalle_txt = f"\n📦 *Detalle:* {detalle}" if detalle else ""
+def link_whatsapp_nueva_deuda(nombre_bodega, cliente_nombre, telefono, monto_compra, nuevo_saldo, detalle_compra="", empleado_nombre="Mostrador", fecha_hora=""):
+    num = limpiar_telefono(telefono)
+    det_txt = detalle_compra.strip() if detalle_compra and detalle_compra.strip() else "Compra a crédito en mostrador"
+    fh_linea = f"• *Fecha y Hora:* {fecha_hora}\n" if fecha_hora else ""
+    emp_linea = f"• *Cargado por:* {empleado_nombre}\n" if empleado_nombre else ""
+    
     mensaje = (
-        f"Hola *{cliente_nombre}*, te saludamos de *{bodega_nombre}*.\n\n"
-        f"Se ha registrado satisfactoriamente tu compra a crédito por *{formatear_cop(monto_compra_cop)}*.{detalle_txt}\n\n"
-        f"📌 *Saldo total acumulado:* {formatear_cop(saldo_total_cop)}\n\n"
-        f"Gracias por tu preferencia.\n"
-        f"— _DiSys CuentaClara_"
+        f"🛒 *NUEVO CARGO A CRÉDITO - {nombre_bodega}*\n\n"
+        f"Hola *{cliente_nombre}*, se ha registrado una compra en tu cuenta:\n"
+        f"{fh_linea}"
+        f"{emp_linea}"
+        f"• *Monto cargado:* {formatear_cop(monto_compra)}\n"
+        f"• *Detalle:* {det_txt}\n\n"
+        f"💰 *Saldo Total Acumulado:* *{formatear_cop(nuevo_saldo)}*\n\n"
+        f"_Control transparente • DiSys CuentaClara_"
     )
-    return f"https://wa.me/{tel}?text={urllib.parse.quote(mensaje)}"
+    return f"https://wa.me/{num}?text={urllib.parse.quote(mensaje)}"
 
-def link_whatsapp_pago(bodega_nombre, cliente_nombre, cliente_tel, monto_abonado_cop, saldo_restante_cop):
-    """Escenarios 2 y 3: Notificación al procesar un Abono Parcial o un Pago Completo."""
-    tel = limpiar_telefono(cliente_tel)
-    if float(saldo_restante_cop) <= 0:
-        # Pago Completo
+def link_whatsapp_pago(nombre_bodega, cliente_nombre, telefono, monto_cop, saldo_restante, moneda_recibida="Pesos (COP)", monto_original=0.0, fecha_hora=""):
+    """Criterio 1: Mensaje de WhatsApp para Abono Parcial (con saldo restante) o Pago Completo (Cero Deuda)."""
+    num = limpiar_telefono(telefono)
+    fh_linea = f"• *Fecha y Hora:* {fecha_hora}\n" if fecha_hora else ""
+    
+    if float(saldo_restante) <= 0:
         mensaje = (
-            f"¡Hola *{cliente_nombre}*! Te saludamos de *{bodega_nombre}*.\n\n"
-            f"✅ Confirmamos la recepción de tu pago completo por *{formatear_cop(monto_abonado_cop)}*.\n"
-            f"🎉 Tu cuenta con nosotros queda totalmente al día (*$ 0 COP*).\n\n"
-            f"¡Muchas gracias por tu puntualidad y confianza!\n"
-            f"— _DiSys CuentaClara_"
+            f"✅ *PAGO COMPLETO RECIBIDO - {nombre_bodega}*\n\n"
+            f"Hola *{cliente_nombre}*, confirmamos la recepción de tu pago total:\n"
+            f"{fh_linea}"
+            f"• *Monto acreditado:* {formatear_cop(monto_cop)}\n"
+            f"• *Moneda entregada:* {moneda_recibida}\n\n"
+            f"🎉 *ESTADO DE CUENTA: CERO DEUDA ($0 COP)*\n"
+            f"Tu cuenta ha quedado completamente al día y en cero deuda. ¡Muchas gracias por tu pago!\n\n"
+            f"_Respaldado por DiSys CuentaClara_"
         )
     else:
-        # Abono Parcial
         mensaje = (
-            f"Hola *{cliente_nombre}*, te saludamos de *{bodega_nombre}*.\n\n"
-            f"✅ Hemos registrado tu abono equivalente a *{formatear_cop(monto_abonado_cop)}*.\n"
-            f"📌 *Saldo restante pendiente:* {formatear_cop(saldo_restante_cop)}\n\n"
-            f"¡Gracias por tu abono!\n"
-            f"— _DiSys CuentaClara_"
+            f"📥 *COMPROBANTE DE ABONO EFECTIVO - {nombre_bodega}*\n\n"
+            f"Hola *{cliente_nombre}*, hemos registrado tu abono en cuenta:\n"
+            f"{fh_linea}"
+            f"• *Abono efectivo recibido:* {formatear_cop(monto_cop)}\n"
+            f"• *Moneda entregada:* {moneda_recibida}\n"
+            f"• *Saldo Restante Pendiente:* *{formatear_cop(saldo_restante)}*\n\n"
+            f"¡Muchas gracias por tu abono!\n"
+            f"_Respaldado por DiSys CuentaClara_"
         )
-    return f"https://wa.me/{tel}?text={urllib.parse.quote(mensaje)}"
+    return f"https://wa.me/{num}?text={urllib.parse.quote(mensaje)}"
 
-def link_whatsapp_cobranza_cordial(bodega_nombre, cliente_nombre, cliente_tel, saldo_total_cop, fecha_deuda):
-    """Escenario 4: Botón de Cobranza Cordial en 1 clic con días transcurridos (Solo en Pesos)."""
-    tel = limpiar_telefono(cliente_tel)
-    dias = calcular_dias_transcurridos(fecha_deuda)
-    texto_dias = "registrada el día de hoy" if dias == 0 else f"con *{dias} día(s)* transcurridos"
+def link_whatsapp_cobranza_cordial(nombre_bodega, cliente_nombre, telefono, saldo_actual, fecha_deuda=""):
+    num = limpiar_telefono(telefono)
+    f_txt = f" (registrada desde el {fecha_deuda})" if fecha_deuda else ""
+    mensaje = (
+        f"👋 Hola *{cliente_nombre}*, te saludamos cordialmente de *{nombre_bodega}*.\n\n"
+        f"Te escribimos para recordarte que a la fecha presentas un saldo pendiente en tu cuenta{f_txt} por un total de:\n"
+        f"👉 *{formatear_cop(saldo_actual)}*\n\n"
+        f"Quedamos atentos a tu abono o pago. ¡Muchas gracias por tu preferencia!\n"
+        f"_Mensaje generado con DiSys CuentaClara_"
+    )
+    return f"https://wa.me/{num}?text={urllib.parse.quote(mensaje)}"
+
+def link_whatsapp_detalle_deuda(nombre_bodega, cliente, movimientos_cliente):
+    """Criterio 2: Envía relación detallada de la deuda con monto, fecha, hora y empleado que cargó."""
+    num = limpiar_telefono(cliente.get("telefono", ""))
+    lineas = []
+
+    for m in movimientos_cliente:
+        tipo = m.get("tipo", "DEUDA")
+        fecha_str = m.get("fecha", "S/F")
+        hora_str = m.get("hora", "")
+        fh_mostrar = f"{fecha_str} {hora_str}".strip() if hora_str not in fecha_str else fecha_str
+        monto = m.get("monto_cop", 0)
+        empleado = m.get("usuario_registro", "Mostrador")
+        detalle = m.get("detalle", "Compra a crédito")
+
+        if tipo in ["DEUDA", "SALDO_INICIAL", "CARGO"]:
+            icono = "📓 Saldo Inicial" if tipo == "SALDO_INICIAL" else "🛒 Deuda cargada"
+            lineas.append(
+                f"• *{fh_mostrar}* | {icono}: *{formatear_cop(monto)}*\n"
+                f"  _Detalle:_ {detalle}\n"
+                f"  _Cargado por:_ *{empleado}*"
+            )
+        elif tipo == "PAGO":
+            lineas.append(
+                f"• *{fh_mostrar}* | ✅ Abono efectivo: *-{formatear_cop(monto)}* _(Recibido por: {empleado})_"
+            )
+
+    cuerpo = "\n\n".join(lineas) if lineas else "• Sin movimientos detallados registrados."
+    saldo_total = cliente.get("saldo_cop", 0)
 
     mensaje = (
-        f"¡Hola *{cliente_nombre}*! Te saludamos cordialmente desde *{bodega_nombre}*.\n\n"
-        f"Pasamos por aquí para recordarte amablemente que a la fecha presentas un saldo pendiente acumulado de "
-        f"*{formatear_cop(saldo_total_cop)}*, {texto_dias}.\n\n"
-        f"Agradecemos de antemano tu valiosa colaboración para poner tu cuenta al día. "
-        f"Quedamos atentos a tus comentarios. ¡Que tengas un excelente día!\n\n"
-        f"— _DiSys CuentaClara_"
+        f"📋 *DETALLE DE DEUDA - {nombre_bodega}*\n"
+        f"Cliente: *{cliente.get('nombre', '')}* (C.I: {cliente.get('cedula', '')})\n\n"
+        f"*Relación detallada de cargos y abonos:*\n"
+        f"{cuerpo}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💰 *SALDO TOTAL PENDIENTE: {formatear_cop(saldo_total)}*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"_DiSys CuentaClara_"
     )
-    return f"https://wa.me/{tel}?text={urllib.parse.quote(mensaje)}"
+    return f"https://wa.me/{num}?text={urllib.parse.quote(mensaje)}"
