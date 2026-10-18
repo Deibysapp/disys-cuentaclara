@@ -50,8 +50,7 @@ def aplicar_blindaje_y_estilos():
                 padding-bottom: 2.5rem !important;
                 max-width: 1150px !important;
             }
-        </style>
-    """, unsafe_allow_html=True)
+       
             /* ==========================================================
                1. OCULTAMIENTO TOTAL DE ICONOS GITHUB Y BARRAS STREAMLIT
                ========================================================== */
