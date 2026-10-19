@@ -170,35 +170,35 @@ def render_master_view(sesion):
             tasa_usd = float(bodega_info["tasas"].get("usd_to_cop", 4100.0))
             tasa_ves = float(bodega_info["tasas"].get("ves_factor", 3.0))
 
-            # Ecuaciones solicitadas (De Pesos a Divisa/Bolívares se DIVIDE)
+            # Ecuaciones de conversión (De Pesos a Divisa/Bolívares se DIVIDE)
             sug_usd = deuda_actual / tasa_usd if tasa_usd > 0 else 0
             sug_ves = deuda_actual / tasa_ves if tasa_ves > 0 else 0
 
-            # Selección de moneda y modalidad fuera de formulario para actualización instantánea
-            moneda_recibida = st.selectbox("Moneda de Pago", options=["Pesos Colombianos (COP)", "Dólares Americanos (USD)", "Bolívares (VES)"], key="select_moneda_pago")
-            tipo_pago = st.radio("Modalidad de Pago", options=["Abono Parcial", "Pago Completo (Cancela toda la deuda)"], key="radio_tipo_pago")
+            # Selección de moneda y modalidad fuera de formulario para visualización inmediata
+            moneda_recibida = st.selectbox("Moneda Recibida", options=["Pesos Colombianos (COP)", "Dólares Americanos (USD)", "Bolívares (VES)"], key="select_moneda_pago")
+            tipo_pago = st.radio("Seleccione Modalidad", options=["Abono Parcial", "Pago Completo (Cancela toda la deuda)"], key="radio_tipo_pago")
 
-            # Mostrar la línea sugerida exacta según la moneda seleccionada
+            # Mostrar la línea sugerida exactamente como lo pediste
             if "Dólares" in moneda_recibida:
                 st.markdown(f"""
-                    <div style="background: #EFF6FF; border: 1px solid #BFDBFE; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; color: #1E40AF;">
-                        <b>💡 Conversión a Dólares:</b> La deuda de {formatear_cop(deuda_actual)} equivale a <b style="font-size: 16px;">${sug_usd:,.2f} USD</b> (Tasa: {tasa_usd:,.2f} COP).
+                    <div style="background: #EFF6FF; border: 2px solid #3B82F6; padding: 14px 16px; border-radius: 10px; margin: 10px 0; color: #1E3A8A;">
+                        <b>💵 Cálculo en Dólares:</b> La deuda de {formatear_cop(deuda_actual)} equivale a <b style="font-size: 18px; color: #1D4ED8;">${sug_usd:,.2f} USD</b> (Tasa: {tasa_usd:,.2f} COP).
                     </div>
                 """, unsafe_allow_html=True)
                 sufijo_monto = "USD ($)"
                 default_monto = sug_usd if "Completo" in tipo_pago else 0.0
             elif "Bolívares" in moneda_recibida:
                 st.markdown(f"""
-                    <div style="background: #F0FDF4; border: 1px solid #BBF7D0; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; color: #166534;">
-                        <b>💡 Conversión a Bolívares:</b> La deuda de {formatear_cop(deuda_actual)} equivale a <b style="font-size: 16px;">{sug_ves:,.2f} Bs</b> (Factor: {tasa_ves:,.2f}).
+                    <div style="background: #F0FDF4; border: 2px solid #22C55E; padding: 14px 16px; border-radius: 10px; margin: 10px 0; color: #14532D;">
+                        <b>🇻🇪 Cálculo en Bolívares:</b> La deuda de {formatear_cop(deuda_actual)} equivale a <b style="font-size: 18px; color: #15803D;">{sug_ves:,.2f} Bs</b> (Factor: {tasa_ves:,.2f}).
                     </div>
                 """, unsafe_allow_html=True)
                 sufijo_monto = "Bs"
                 default_monto = sug_ves if "Completo" in tipo_pago else 0.0
             else:
                 st.markdown(f"""
-                    <div style="background: #FFF7ED; border: 1px solid #FFEDD5; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; color: #9A3412;">
-                        <b>💡 Monto en Pesos:</b> Deuda actual de <b style="font-size: 16px;">{formatear_cop(deuda_actual)}</b>.
+                    <div style="background: #FFF7ED; border: 2px solid #F97316; padding: 14px 16px; border-radius: 10px; margin: 10px 0; color: #7C2D12;">
+                        <b>🇨🇴 Monto en Pesos:</b> Deuda actual de <b style="font-size: 18px; color: #C2410C;">{formatear_cop(deuda_actual)}</b>.
                     </div>
                 """, unsafe_allow_html=True)
                 sufijo_monto = "COP ($)"
