@@ -1,44 +1,57 @@
-import streamlit as st
 import json
+import os
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
-from supabase import create_client, Client
 
-# Inicializar cliente de Supabase usando los Secrets de Streamlit Cloud o variables locales
-@st.cache_resource
-def init_supabase() -> Client:
-    url = st.secrets.get("https://ptsvpbuyjvczhxeicqjw.supabase.co", "")
-    key = st.secrets.get("sb_publishable_-BYUl_TCRZZWkdC-9R6NiA_wt7uMOBe", "")
-    if not url or not key:
-        # Valores por defecto de respaldo si estás probando en local sin secrets.toml
-        url = "https://ptsvpbuyjvczhxeicqjw.supabase.co"
-        key = "sb_publishable_-BYUl_TCRZZWkdC-9R6NiA_wt7uMOBe"
-    return create_client(url, key)
-
-SUPABASE_REGISTRO_ID = "base_datos_global"
+DB_FILE = "disys_db.json"
 
 def cargar_db():
-    """Carga toda la base de datos estructurada desde Supabase."""
+    """Carga toda la base de datos estructurada desde el archivo JSON local."""
+    if not os.path.exists(DB_FILE):
+        db_inicial = {
+            "bodegas": {
+                "bodega_principal": {
+                    "id": "bodega_principal",
+                    "nombre": "Bodega Principal Táchira",
+                    "dueño": "Deibys Ibañes",
+                    "telefono": "04242954794",
+                    "gmail_respaldo": "disys25@gmail.com",
+                    "activa": True,
+                    "max_empleados": 10,
+                    "modulos_carga": {"monto": True, "productos": True, "foto": False},
+                    "tasas": {"usd_to_cop": 4100.0, "ves_factor": 3.0}
+                }
+            },
+            "usuarios": [
+                {
+                    "username": "supermaster",
+                    "password": "123",
+                    "nombre": "Super Administrador",
+                    "rol": "SUPER_MASTER",
+                    "bodega_id": "",
+                    "activo": True
+                },
+                {
+                    "username": "deibys",
+                    "password": "123",
+                    "nombre": "Deibys Ibañes",
+                    "rol": "MASTER",
+                    "bodega_id": "bodega_principal",
+                    "activo": True
+                }
+            ],
+            "clientes": [],
+            "movimientos": [],
+            "solicitudes_sobregiro": []
+        }
+        guardar_db(db_inicial)
+        return db_inicial
+    
     try:
-        supabase = init_supabase()
-        response = supabase.table("disys_storage").select("data").eq("id", SUPABASE_REGISTRO_ID).execute()
-        
-        if response.data and len(response.data) > 0:
-            return response.data[0]["data"]
-        else:
-            # Estructura inicial por defecto si la tabla está vacía
-            db_inicial = {
-                "bodegas": {},
-                "usuarios": [],
-                "clientes": [],
-                "movimientos": [],
-                "solicitudes_sobregiro": []
-            }
-            guardar_db(db_inicial)
-            return db_inicial
-    except Exception as e:
-        st.error(f"Error al conectar con la base de datos en la nube: {e}")
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
         return {
             "bodegas": {},
             "usuarios": [],
@@ -48,21 +61,15 @@ def cargar_db():
         }
 
 def guardar_db(db):
-    """Guarda y sincroniza toda la base de datos en tiempo real en Supabase."""
+    """Guarda y sincroniza toda la base de datos en el archivo JSON local."""
     try:
-        supabase = init_supabase()
-        payload = {
-            "id": SUPABASE_REGISTRO_ID,
-            "data": db,
-            "updated_at": datetime.now().isoformat()
-        }
-        # Upsert: Inserta o actualiza el registro global en la nube
-        supabase.table("disys_storage").upsert(payload).execute()
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(db, f, ensure_ascii=False, indent=4)
     except Exception as e:
-        st.error(f"Error al guardar datos en la nube: {e}")
+        print(f"Error al guardar base de datos local: {e}")
 
 def encolar_y_sincronizar(db, bodega_id, tipo_evento, detalle):
-    """Función de compatibilidad para eventos en tiempo real."""
+    """Función de compatibilidad para eventos."""
     guardar_db(db)
 
 def fecha_actual_str():
@@ -70,6 +77,31 @@ def fecha_actual_str():
 
 def solo_fecha_str():
     return datetime.now().strftime("%Y-%m-%d")
+
+def autenticar_usuario(username, password):
+    db = cargar_db()
+    u_limpio = username.strip().lower()
+    p_limpio = password.strip()
+
+    for u in db.get("usuarios", []):
+        if u.get("username", "").strip().lower() == u_limpio and str(u.get("password", "")).strip() == p_limpio:
+            if not u.get("activo", True):
+                return False, "⚠️ Tu cuenta o suscripción se encuentra suspendida. Contacta al administrador.", None
+            
+            # Si es empleado o master, validar que la bodega esté activa
+            bodega_id = u.get("bodega_id", "")
+            if bodega_id and bodega_id in db.get("bodegas", {}):
+                if not db["bodegas"][bodega_id].get("activa", True):
+                    return False, "⚠️ La bodega asociada a este usuario se encuentra suspendida.", None
+
+            return True, f"¡Bienvenido/a, {u.get('nombre', '')}!", {
+                "username": u.get("username"),
+                "nombre": u.get("nombre"),
+                "rol": u.get("rol"),
+                "bodega_id": bodega_id
+            }
+            
+    return False, "❌ Usuario o clave incorrectos.", None
 
 def generar_excel_respaldo(bodega_id=None):
     db = cargar_db()
