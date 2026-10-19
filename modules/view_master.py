@@ -44,7 +44,7 @@ def render_master_view(sesion):
 
         with st.form("form_tasas"):
             t_usd = st.number_input("Tasa Dólar (¿Cuántos Pesos COP vale 1 Dólar $?)", min_value=1.0, value=float(bodega_info["tasas"].get("usd_to_cop", 4100.0)), step=50.0)
-            t_ves = st.number_input("Tasa Bolívares (Factor VES/COP, ej: cuántos Pesos COP vale 1 Bolívar)", min_value=0.0001, value=float(bodega_info["tasas"].get("ves_factor", 3.0)), format="%.4f", step=0.001)
+            t_ves = st.number_input("Tasa Bolívares (Factor de conversión VES)", min_value=0.0001, value=float(bodega_info["tasas"].get("ves_factor", 3.0)), format="%.4f", step=0.001)
 
             if st.form_submit_button("💾 Guardar Tasas del Día", type="primary"):
                 bodega_info["tasas"]["usd_to_cop"] = t_usd
@@ -118,7 +118,7 @@ def render_master_view(sesion):
         else:
             for cli in clientes_b:
                 s_actual = cli.get("saldo_cop", 0)
-                movs_cli = [m for m in db.get("movimientos", []) if m.get("cliente_id") == cli["id"] and m.get("bodega_id"] == bodega_id]
+                movs_cli = [m for m in db.get("movimientos", []) if m.get("cliente_id"] == cli["id"] and m.get("bodega_id"] == bodega_id]
                 url_cordial = link_whatsapp_cobranza_cordial(nombre_bodega, cli["nombre"], cli["telefono"], s_actual, cli.get("fecha_deuda_activa", ""))
                 url_detalle = link_whatsapp_detalle_deuda(nombre_bodega, cli, movs_cli)
 
@@ -174,32 +174,39 @@ def render_master_view(sesion):
             eq_usd = deuda_actual / tasa_usd if tasa_usd > 0 else 0
             eq_ves = deuda_actual / tasa_ves if tasa_ves > 0 else 0
 
-            st.info(f"💡 **Sugerido para cancelar total:** ${eq_usd:,.2f} USD | {eq_ves:,.2f} Bs")
+            # Selector interactivo fuera del formulario para saber qué moneda eligió y mostrar el sugerido exacto
+            moneda_recibida = st.selectbox("Moneda en la que Paga", options=["Pesos Colombianos (COP)", "Dólares Americanos (USD)", "Bolívares (VES)"])
+            tipo_pago = st.radio("Modalidad de Pago", options=["Abono Parcial", "Pago Completo (Cancela toda la deuda)"])
+
+            # Definir el monto sugerido dinámico a mostrar en el input
+            if "Completo" in tipo_pago:
+                if "Dólares" in moneda_recibida:
+                    sugerido_val = eq_usd
+                elif "Bolívares" in moneda_recibida:
+                    sugerido_val = eq_ves
+                else:
+                    sugerido_val = deuda_actual
+            else:
+                # Si es abono parcial, sugerimos por defecto el total en esa moneda para que puedan borrar y ajustar o abonar completo
+                if "Dólares" in moneda_recibida:
+                    sugerido_val = eq_usd
+                elif "Bolívares" in moneda_recibida:
+                    sugerido_val = eq_ves
+                else:
+                    sugerido_val = 0.0
+
+            if "Dólares" in moneda_recibida:
+                st.info(f"💡 **Monto sugerido en Dólares:** ${eq_usd:,.2f} USD (Tasa: {tasa_usd:,.0f} COP)")
+                sufijo_monto = "USD ($)"
+            elif "Bolívares" in moneda_recibida:
+                st.info(f"💡 **Monto sugerido en Bolívares:** {eq_ves:,.2f} Bs (Factor: {tasa_ves:,.2f})")
+                sufijo_monto = "Bs"
+            else:
+                st.info(f"💡 **Monto sugerido en Pesos:** {formatear_cop(deuda_actual)}")
+                sufijo_monto = "COP ($)"
 
             with st.form("form_procesar_pago_trin"):
-                tipo_pago = st.radio("Modalidad de Pago", options=["Abono Parcial", "Pago Completo (Cancela toda la deuda)"])
-                moneda_recibida = st.selectbox("Moneda en la que Paga", options=["Pesos Colombianos (COP)", "Dólares Americanos (USD)", "Bolívares (VES)"])
-
-                if "Completo" in tipo_pago:
-                    if "Dólares" in moneda_recibida:
-                        default_val = eq_usd
-                        sufijo_monto = "USD ($)"
-                    elif "Bolívares" in moneda_recibida:
-                        default_val = eq_ves
-                        sufijo_monto = "Bs"
-                    else:
-                        default_val = deuda_actual
-                        sufijo_monto = "COP ($)"
-                else:
-                    default_val = 0.0
-                    if "Dólares" in moneda_recibida:
-                        sufijo_monto = "USD ($)"
-                    elif "Bolívares" in moneda_recibida:
-                        sufijo_monto = "Bs"
-                    else:
-                        sufijo_monto = "COP ($)"
-
-                monto_entregado = st.number_input(f"Monto entregado por el cliente en {sufijo_monto}", min_value=0.0, value=default_val, step=1.0)
+                monto_entregado = st.number_input(f"Monto entregado por el cliente en {sufijo_monto}", min_value=0.0, value=float(sugerido_val), step=1.0)
                 nota_pago = st.text_input("Nota o Referencia bancaria (Opcional)")
 
                 if st.form_submit_button("✅ Procesar Pago y Generar Comprobante WhatsApp", type="primary"):
@@ -217,13 +224,13 @@ def render_master_view(sesion):
                             tasa_usada = 1.0
                             monto_orig = monto_entregado
                         elif "Dólares" in moneda_recibida:
-                            # Abono en Dólares: Se multiplica el monto en USD por la tasa del día para pasarlo a pesos
-                            descuento_cop = monto_entregado * tasa_usd
+                            # Abono en Dólares: Se divide entre la tasa o se multiplica según corresponda, aquí usamos la división para convertir el monto en dólares a pesos
+                            descuento_cop = monto_entregado / tasa_usd if tasa_usd > 0 else 0
                             tasa_usada = tasa_usd
                             monto_orig = monto_entregado
                         else:
-                            # Abono en Bolívares: Se multiplica el monto en Bs por el factor de la tasa para pasarlo a pesos
-                            descuento_cop = monto_entregado * tasa_ves
+                            # Abono en Bolívares: Se divide el monto en Bs entre el factor de la tasa para pasarlo a pesos
+                            descuento_cop = monto_entregado / tasa_ves if tasa_ves > 0 else 0
                             tasa_usada = tasa_ves
                             monto_orig = monto_entregado
 
