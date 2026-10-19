@@ -44,7 +44,7 @@ def render_master_view(sesion):
 
         with st.form("form_tasas"):
             t_usd = st.number_input("Tasa Dólar (¿Cuántos Pesos COP vale 1 Dólar $?)", min_value=1.0, value=float(bodega_info["tasas"].get("usd_to_cop", 4100.0)), step=50.0)
-            t_ves = st.number_input("Tasa Bolívares (Factor VES/COP, ej: cuántos Pesos COP vale 1 Bolívar, o factor de división)", min_value=0.0001, value=float(bodega_info["tasas"].get("ves_factor", 3.0)), format="%.4f", step=0.001)
+            t_ves = st.number_input("Tasa Bolívares (Factor VES/COP, ej: cuántos Pesos COP vale 1 Bolívar)", min_value=0.0001, value=float(bodega_info["tasas"].get("ves_factor", 3.0)), format="%.4f", step=0.001)
 
             if st.form_submit_button("💾 Guardar Tasas del Día", type="primary"):
                 bodega_info["tasas"]["usd_to_cop"] = t_usd
@@ -170,11 +170,11 @@ def render_master_view(sesion):
             tasa_usd = float(bodega_info["tasas"].get("usd_to_cop", 4100.0))
             tasa_ves = float(bodega_info["tasas"].get("ves_factor", 3.0))
 
-            # Cálculo de equivalentes para mostrar al usuario
+            # Cálculo de equivalentes sugeridos (Deuda Pesos / Tasa)
             eq_usd = deuda_actual / tasa_usd if tasa_usd > 0 else 0
             eq_ves = deuda_actual / tasa_ves if tasa_ves > 0 else 0
 
-            st.info(f"💡 **Equivalencia de la Deuda Total:** ${eq_usd:,.2f} USD | {eq_ves:,.2f} Bs")
+            st.info(f"💡 **Sugerido para cancelar total:** ${eq_usd:,.2f} USD | {eq_ves:,.2f} Bs")
 
             with st.form("form_procesar_pago_trin"):
                 tipo_pago = st.radio("Modalidad de Pago", options=["Abono Parcial", "Pago Completo (Cancela toda la deuda)"])
@@ -217,13 +217,13 @@ def render_master_view(sesion):
                             tasa_usada = 1.0
                             monto_orig = monto_entregado
                         elif "Dólares" in moneda_recibida:
-                            # Conversión Dólares a Pesos: Monto USD * Tasa Dólar
+                            # Abono en Dólares: Se multiplica el monto en USD por la tasa del día para pasarlo a pesos
                             descuento_cop = monto_entregado * tasa_usd
                             tasa_usada = tasa_usd
                             monto_orig = monto_entregado
                         else:
-                            # Conversión Bolívares a Pesos según la regla indicada: Deuda / tasa o Monto / tasa
-                            descuento_cop = monto_entregado / tasa_ves if tasa_ves > 0 else 0
+                            # Abono en Bolívares: Se multiplica el monto en Bs por el factor de la tasa para pasarlo a pesos
+                            descuento_cop = monto_entregado * tasa_ves
                             tasa_usada = tasa_ves
                             monto_orig = monto_entregado
 
@@ -351,7 +351,6 @@ def render_master_view(sesion):
             mov_a_borrar = map_movs[mov_sel_key]
 
             if st.button("🗑️ Eliminar Deuda Errónea y Reajustar Saldo", type="primary"):
-                # 1. Reajustar saldo del cliente restándole el monto mal cargado
                 c_id_afectado = mov_a_borrar.get("cliente_id")
                 monto_mal = float(mov_a_borrar.get("monto_cop", 0))
 
@@ -362,7 +361,6 @@ def render_master_view(sesion):
                         if cli["saldo_cop"] == 0:
                             cli["fecha_deuda_activa"] = ""
 
-                # 2. Remover el movimiento de la lista
                 db["movimientos"] = [m for m in db["movimientos"] if m.get("id") != mov_a_borrar.get("id")]
                 guardar_db(db)
                 st.success("¡Deuda errónea eliminada y saldo del cliente reajustado con éxito!")
