@@ -1,0 +1,44 @@
+[33m4db1da1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m HEAD@{0}: commit: Corregido: limpieza de telefonos, suspension/activacion por pago, y confirmacion para eliminar bodegas
+[33mc8f8629[m HEAD@{1}: commit: Deteccion inteligente de prefijos locales para Venezuela y Colombia en WhatsApp
+[33mcd3b475[m HEAD@{2}: commit: Soporte inteligente para telefonos venezolanos y colombianos en enlaces de WhatsApp
+[33m2164a41[m HEAD@{3}: commit: Agregada generacion automatica de enlace y boton de WhatsApp para compartir credenciales al crear bodega
+[33m3a88317[m HEAD@{4}: commit: Corregido generar_excel_respaldo para evitar IndexError cuando no hay datos
+[33ma4697ee[m HEAD@{5}: commit: Estructura limpia: bodegas creadas desde supermaster y empleados desde master
+[33ma0a6ea8[m HEAD@{6}: commit: Restaurados usuarios Super Master, Maria, Deibys y multi-bodega
+[33m300bb48[m HEAD@{7}: commit: Corregido error de sintaxis en view_master.py
+[33mbeca4e4[m HEAD@{8}: commit: Agregadas funciones faltantes cargar_db, guardar_db y generar_excel_respaldo
+[33md28dc18[m HEAD@{9}: commit: Restauradas funciones cargar_db y autenticar_usuario
+[33ma1cd621[m HEAD@{10}: reset: moving to HEAD~5
+[33m07518f6[m HEAD@{11}: commit: Ajustada funcion autenticar_usuario para devolver 3 valores exactamente como app.py lo requiere
+[33m91e9a36[m HEAD@{12}: commit: Corregido modulo database con funcion autenticar_usuario
+[33md03217c[m HEAD@{13}: commit: Añadido requirements.txt con dependencias de supabase y openpyxl
+[33m1227ca1[m HEAD@{14}: commit: Actualizacion completa modulo cobranza V2 con claves unicas y calculos exactos
+[33m669f43f[m HEAD@{15}: commit: Eliminado st.form en pagos para permitir visualizacion dinamica de sugeridos y multiplicacion correcta
+[33ma1cd621[m HEAD@{16}: commit: Caja de cobros corregida con visualizacion de sugeridos y multiplicacion correcta para abonos
+[33m250424a[m HEAD@{17}: commit: Corregido calculo exacto y visualizacion de sugeridos en dolares y bolivares
+[33m407cd69[m HEAD@{18}: commit: Agregado aviso visual y monto sugerido dinamico en dolares y bolivares en el modulo de pagos
+[33m72d3559[m HEAD@{19}: commit: Corregido calculo de abonos en dolares y bolivares multiplicando por la tasa para descontar en pesos
+[33m4b24f1d[m HEAD@{20}: commit: Actualizado modulo de cobranza trimoneda y seccion de auditoria para eliminar deudas erroneas
+[33mc69cf31[m HEAD@{21}: commit: Conectado a Supabase PostgreSQL
+[33m4c465d6[m HEAD@{22}: commit: Actualizado whatsapp, view_master y view_empleado con recibos y detalle de deuda
+[33m57f96d0[m HEAD@{23}: commit: Limpieza y actualizacion de view_master y view_empleado
+[33m4e80ef2[m HEAD@{24}: commit: Agregados recibos WhatsApp abono/pago cero y detalle de deuda con empleado fecha y hora
+[33m3074fdf[m HEAD@{25}: commit: Script JS mejorado para eliminar badges flotantes de Streamlit Cloud
+[33m0a67507[m HEAD@{26}: commit: Agregada opcion de eliminar usuario master y verificar activacion
+[33m8f56300[m HEAD@{27}: commit: Bloqueados iconos flotantes y badges de Streamlit en movil
+[33m201b1a6[m HEAD@{28}: commit: Ocultados elementos flotantes y barras de Streamlit
+[33mda27f55[m HEAD@{29}: commit: Ocultados elementos flotantes y barras de Streamlit
+[33mf0800a1[m HEAD@{30}: commit: Ajustada ruta del manifest.json para PWA movil
+[33mcc8b500[m HEAD@{31}: commit: Agregado manifest.json y configurado icono movil con logo DiSys
+[33m56c6db4[m HEAD@{32}: commit: Agregados metadatos Open Graph para compartir con el logo
+[33md45625e[m HEAD@{33}: commit: Agregada sesion persistente y boton de recarga de datos
+[33m7b8fcfb[m HEAD@{34}: commit: Importado obtener_logo_base64 en app.py
+[33mc838395[m HEAD@{35}: commit: Agregado logo corporativo en la pantalla de login
+[33md97e03e[m HEAD@{36}: commit: Limpieza definitiva view_master
+[33m89fd194[m HEAD@{37}: commit: Modulo view_master limpio y corregido
+[33m54fd4fb[m HEAD@{38}: commit: Corregida indentacion en view_supermaster.py
+[33m7dd2d31[m HEAD@{39}: commit: Importada libreria uuid en view_supermaster
+[33m9689534[m HEAD@{40}: commit: Actualizado correo central a disys25@gmail.com
+[33m4cac938[m HEAD@{41}: commit: Corregida importacion de solo_fecha_str
+[33mbb36969[m HEAD@{42}: Branch: renamed refs/heads/master to refs/heads/main
+[33mbb36969[m HEAD@{44}: commit (initial): Primer commit - DiSys CuentaClara
