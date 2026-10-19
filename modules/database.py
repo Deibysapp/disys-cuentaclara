@@ -88,7 +88,6 @@ def autenticar_usuario(username, password):
             if not u.get("activo", True):
                 return False, "⚠️ Tu cuenta o suscripción se encuentra suspendida. Contacta al administrador.", None
             
-            # Si es empleado o master, validar que la bodega esté activa
             bodega_id = u.get("bodega_id", "")
             if bodega_id and bodega_id in db.get("bodegas", {}):
                 if not db["bodegas"][bodega_id].get("activa", True):

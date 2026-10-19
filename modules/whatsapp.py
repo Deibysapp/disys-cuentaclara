@@ -101,7 +101,7 @@ def link_whatsapp_detalle_deuda(nombre_bodega, cliente, movimientos_cliente):
             )
         elif tipo == "PAGO":
             lineas.append(
-                f"• *{fh_mostrar}* | ✅ Abono efectivo: *-{formatear_cop(monto)}* _(Recibido por: {empleado})_"
+                f"• *{fh_mostrar}* | ✅ Abono efectivo: *{formatear_cop(monto)}* _(Recibido por: {empleado})_"
             )
 
     cuerpo = "\n\n".join(lineas) if lineas else "• Sin movimientos detallados registrados."

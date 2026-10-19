@@ -118,7 +118,7 @@ def render_master_view(sesion):
         else:
             for cli in clientes_b:
                 s_actual = cli.get("saldo_cop", 0)
-                movs_cli = [m for m in db.get("movimientos", []) if m.get("cliente_id"] == cli["id"] and m.get("bodega_id"] == bodega_id]
+                movs_cli = [m for m in db.get("movimientos", []) if m.get("cliente_id") == cli["id"] and m.get("bodega_id") == bodega_id]
                 url_cordial = link_whatsapp_cobranza_cordial(nombre_bodega, cli["nombre"], cli["telefono"], s_actual, cli.get("fecha_deuda_activa", ""))
                 url_detalle = link_whatsapp_detalle_deuda(nombre_bodega, cli, movs_cli)
 
@@ -170,15 +170,12 @@ def render_master_view(sesion):
             tasa_usd = float(bodega_info["tasas"].get("usd_to_cop", 4100.0))
             tasa_ves = float(bodega_info["tasas"].get("ves_factor", 3.0))
 
-            # Ecuaciones de conversión (De Pesos a Divisa/Bolívares se DIVIDE)
             sug_usd = deuda_actual / tasa_usd if tasa_usd > 0 else 0
             sug_ves = deuda_actual / tasa_ves if tasa_ves > 0 else 0
 
-            # Selección de moneda y modalidad fuera de formulario para visualización inmediata
             moneda_recibida = st.selectbox("Moneda Recibida", options=["Pesos Colombianos (COP)", "Dólares Americanos (USD)", "Bolívares (VES)"], key="select_moneda_pago")
             tipo_pago = st.radio("Seleccione Modalidad", options=["Abono Parcial", "Pago Completo (Cancela toda la deuda)"], key="radio_tipo_pago")
 
-            # Mostrar la línea sugerida exactamente como lo pediste
             if "Dólares" in moneda_recibida:
                 st.markdown(f"""
                     <div style="background: #EFF6FF; border: 2px solid #3B82F6; padding: 14px 16px; border-radius: 10px; margin: 10px 0; color: #1E3A8A;">
@@ -223,12 +220,10 @@ def render_master_view(sesion):
                             tasa_usada = 1.0
                             monto_orig = monto_entregado
                         elif "Dólares" in moneda_recibida:
-                            # De Dólares a Pesos se MULTIPLICA
                             descuento_cop = monto_entregado * tasa_usd
                             tasa_usada = tasa_usd
                             monto_orig = monto_entregado
                         else:
-                            # De Bolívares a Pesos se MULTIPLICA (Ej: 20000 Bs * 3 = 60000 Pesos)
                             descuento_cop = monto_entregado * tasa_ves
                             tasa_usada = tasa_ves
                             monto_orig = monto_entregado
@@ -352,7 +347,7 @@ def render_master_view(sesion):
         if not movs_deudas:
             st.info("No hay registros de deudas cargadas para auditar.")
         else:
-            map_movs = {f"[{m.get('fecha')} {m.get('hora')}] Cliente: {m.get('cliente_nombre')} - Monto: {formatear_cop(m.get('monto_cop'))} (Cargado por: {m.get('usuario_registro')})": m for m in movs_deudas}
+            map_movs = {f"[{m.get('fecha')} {m.get('hora')}] Cliente: {m.get('cliente_nombre')} | Monto: {formatear_cop(m.get('monto_cop'))} (Cargado por: {m.get('usuario_registro')})": m for m in movs_deudas}
             mov_sel_key = st.selectbox("Seleccione la deuda reportada como errónea para eliminar", options=list(map_movs.keys()))
             mov_a_borrar = map_movs[mov_sel_key]
 

@@ -1,0 +1,40 @@
+{
+    "bodegas": {
+        "bodega_3b6684cd": {
+            "id": "bodega_3b6684cd",
+            "nombre": "Mi Bodega",
+            "dueño": "Deibys",
+            "telefono": "04242954794",
+            "gmail_respaldo": "juegoslibre929@gmail.com",
+            "activa": true,
+            "max_empleados": 1,
+            "modulos_carga": {
+                "monto": true,
+                "productos": false,
+                "foto": false
+            },
+            "drive_webhook_url": ""
+        }
+    },
+    "usuarios": [
+        {
+            "username": "supermaster",
+            "password": "disys2026",
+            "nombre": "Super Administrador",
+            "rol": "SUPER_MASTER",
+            "bodega_id": "",
+            "activo": true
+        },
+        {
+            "username": "Deibys",
+            "password": "1234",
+            "nombre": "Deibys",
+            "rol": "MASTER",
+            "bodega_id": "bodega_3b6684cd",
+            "activo": true
+        }
+    ],
+    "clientes": [],
+    "movimientos": [],
+    "solicitudes_sobregiro": []
+}
