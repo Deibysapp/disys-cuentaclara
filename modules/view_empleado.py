@@ -250,40 +250,43 @@ def render_empleado_view(sesion):
                         cliente_seleccionado["fecha_deuda_activa"] = fecha_str
 
                     # Registrar movimiento con fecha, hora y nombre del empleado
-                    movimiento = {
-                        "id": "mov_" + str(ahora_dt.timestamp()),
-                        "bodega_id": bodega_id,
-                        "tipo": "DEUDA",
-                        "cliente_id": cliente_seleccionado["id"],
-                        "cliente_nombre": cliente_seleccionado["nombre"],
-                        "cliente_cedula": cliente_seleccionado["cedula"],
-                        "monto_cop": monto_compra,
-                        "detalle": detalle_compra or "Compra a crédito en mostrador",
-                        "usuario_registro": sesion["nombre"],
-                        "fecha": fecha_str,
-                        "hora": hora_str,
-                        "saldo_resultante_cop": nuevo_saldo
-                    }
-                    db["movimientos"].append(movimiento)
-                    encolar_y_sincronizar(db, bodega_id, "NUEVA_DEUDA", movimiento)
+                movimiento = {
+                    "id": "mov_" + str(ahora_dt.timestamp()),
+                    "bodega_id": bodega_id,
+                    "tipo": "DEUDA",
+                    "cliente_id": cliente_seleccionado["id"],
+                    "cliente_nombre": cliente_seleccionado["nombre"],
+                    "cliente_cedula": cliente_seleccionado["cedula"],
+                    "monto_cop": monto_compra,
+                    "detalle": detalle_compra or "Compra a crédito en mostrador",
+                    "usuario_registro": sesion["nombre"],
+                    "fecha": fecha_str,
+                    "hora": hora_str,
+                    "saldo_resultante_cop": nuevo_saldo
+                }
+                db["movimientos"].append(movimiento)
+                encolar_y_sincronizar(db, bodega_id, "NUEVA_DEUDA", movimiento)
 
-                    # Generar enlace directo para WhatsApp incluyendo fecha, hora y empleado
-                    url_w = generar_link_wa_nueva_deuda_empleado(
-                        nombre_bodega=nombre_bodega,
-                        cliente_nombre=cliente_seleccionado["nombre"],
-                        telefono=cliente_seleccionado["telefono"],
-                        monto_compra=monto_compra,
-                        nuevo_saldo=nuevo_saldo,
-                        detalle_compra=detalle_compra,
-                        empleado_nombre=sesion["nombre"],
-                        fecha_hora=fh_completa
-                    )
+                # 🚀 ¡ESTA ES LA LÍNEA QUE FALTABA PARA GUARDAR EN SUPABASE!
+                guardar_db(db)
 
-                    st.session_state["ultimo_cargo_emp_wa"] = {
-                        "cliente_id": cliente_seleccionado["id"],
-                        "monto": monto_compra,
-                        "url_w": url_w
-                    }
+                # Generar enlace directo para WhatsApp incluyendo fecha, hora y empleado
+                url_w = generar_link_wa_nueva_deuda_empleado(
+                    nombre_bodega=nombre_bodega,
+                    cliente_nombre=cliente_seleccionado["nombre"],
+                    telefono=cliente_seleccionado["telefono"],
+                    monto_compra=monto_compra,
+                    nuevo_saldo=nuevo_saldo,
+                    detalle_compra=detalle_compra,
+                    empleado_nombre=sesion["nombre"],
+                    fecha_hora=fh_completa
+                )
 
-                    st.success("¡Deuda registrada y guardada exitosamente!")
-                    st.rerun()
+                st.session_state["ultimo_cargo_emp_wa"] = {
+                    "cliente_id": cliente_seleccionado["id"],
+                    "monto": monto_compra,
+                    "url_w": url_w
+                }
+
+                st.success("¡Deuda registrada y guardada exitosamente!")
+                st.rerun()
