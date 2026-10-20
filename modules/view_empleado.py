@@ -215,57 +215,60 @@ def render_empleado_view(sesion):
             else:
                 btn_enviar = st.form_submit_button("✅ Registrar Deuda y Enviar WhatsApp", type="primary")
 
-            if btn_enviar:
+           if btn_enviar:
                 if monto_compra <= 0:
                     st.error("El monto de la compra debe ser mayor a cero.")
-                elif excede_limite:
-                    ahora_dt = datetime.now()
-                    # Registrar solicitud de sobregiro pendiente con nombre de empleado y detalle
-                    db["solicitudes_sobregiro"].append({
-                        "id": "sob_" + str(ahora_dt.timestamp()),
-                        "bodega_id": bodega_id,
-                        "cliente_id": cliente_seleccionado["id"],
-                        "cliente_nombre": cliente_seleccionado["nombre"],
-                        "monto_solicitado": monto_compra,
-                        "detalle": detalle_compra or "Compra en mostrador",
-                        "empleado": sesion["nombre"],
-                        "empleado_nombre": sesion["nombre"],
-                        "usuario_registro": sesion["nombre"],
-                        "fecha": solo_fecha_str(),
-                        "hora": ahora_dt.strftime("%I:%M %p"),
-                        "estado": "PENDIENTE"
-                    })
-                    guardar_db(db)
-                    st.warning("⏳ Solicitud de sobregiro enviada al Usuario Máster. Espere que el dueño autorice desde su panel para continuar.")
                 else:
+                    # 🚀 DEFINIMOS LAS VARIABLES DE TIEMPO AQUÍ ARRIBA PARA QUE ESTÉN DISPONIBLES SIEMPRE
                     ahora_dt = datetime.now()
                     fecha_str = solo_fecha_str()
                     hora_str = ahora_dt.strftime("%I:%M %p")
                     fh_completa = f"{fecha_str} {hora_str}"
 
-                    # Actualizar saldo del cliente
-                    nuevo_saldo = float(cliente_seleccionado.get("saldo_cop", 0)) + float(monto_compra)
-                    cliente_seleccionado["saldo_cop"] = nuevo_saldo
-                    if not cliente_seleccionado.get("fecha_deuda_activa"):
-                        cliente_seleccionado["fecha_deuda_activa"] = fecha_str
+                    if excede_limite:
+                        # Registrar solicitud de sobregiro pendiente
+                        db["solicitudes_sobregiro"].append({
+                            "id": "sob_" + str(ahora_dt.timestamp()),
+                            "bodega_id": bodega_id,
+                            "cliente_id": cliente_seleccionado["id"],
+                            "cliente_nombre": cliente_seleccionado["nombre"],
+                            "monto_solicitado": monto_compra,
+                            "detalle": detalle_compra or "Compra en mostrador",
+                            "empleado": sesion["nombre"],
+                            "empleado_nombre": sesion["nombre"],
+                            "usuario_registro": sesion["nombre"],
+                            "fecha": fecha_str,  # <--- Ahora sí la encuentra perfectamente
+                            "hora": hora_str,
+                            "estado": "PENDIENTE"
+                        })
+                        guardar_db(db)
+                        st.warning("⏳ Solicitud de sobregiro enviada al Usuario Máster. Espere que el dueño autorice desde su panel para continuar.")
+                    else:
+                        # Actualizar saldo del cliente para venta normal
+                        nuevo_saldo = float(cliente_seleccionado.get("saldo_cop", 0)) + float(monto_compra)
+                        cliente_seleccionado["saldo_cop"] = nuevo_saldo
+                        if not cliente_seleccionado.get("fecha_deuda_activa"):
+                            cliente_seleccionado["fecha_deuda_activa"] = fecha_str
 
-                    # Registrar movimiento con fecha, hora y nombre del empleado
-                movimiento = {
-                    "id": "mov_" + str(ahora_dt.timestamp()),
-                    "bodega_id": bodega_id,
-                    "tipo": "DEUDA",
-                    "cliente_id": cliente_seleccionado["id"],
-                    "cliente_nombre": cliente_seleccionado["nombre"],
-                    "cliente_cedula": cliente_seleccionado["cedula"],
-                    "monto_cop": monto_compra,
-                    "detalle": detalle_compra or "Compra a crédito en mostrador",
-                    "usuario_registro": sesion["nombre"],
-                    "fecha": fecha_str,
-                    "hora": hora_str,
-                    "saldo_resultante_cop": nuevo_saldo
-                }
-                db["movimientos"].append(movimiento)
-                encolar_y_sincronizar(db, bodega_id, "NUEVA_DEUDA", movimiento)
+                        movimiento = {
+                            "id": "mov_" + str(ahora_dt.timestamp()),
+                            "bodega_id": bodega_id,
+                            "tipo": "DEUDA",
+                            "cliente_id": cliente_seleccionado["id"],
+                            "cliente_nombre": cliente_seleccionado["nombre"],
+                            "cliente_cedula": cliente_seleccionado["cedula"],
+                            "monto_cop": monto_compra,
+                            "detalle": detalle_compra or "Compra a crédito en mostrador",
+                            "usuario_registro": sesion["nombre"],
+                            "fecha": fecha_str,
+                            "hora": hora_str,
+                            "saldo_resultante_cop": nuevo_saldo
+                        }
+                        db["movimientos"].append(movimiento)
+                        encolar_y_sincronizar(db, bodega_id, "NUEVA_DEUDA", movimiento)
+                        guardar_db(db)
+                        
+                        # (resto del código de WhatsApp y éxito...)
 
                 # 🚀 ¡ESTA ES LA LÍNEA QUE FALTABA PARA GUARDAR EN SUPABASE!
                 guardar_db(db)
