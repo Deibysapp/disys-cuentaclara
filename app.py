@@ -28,13 +28,13 @@ if st.session_state["sesion"] is None:
     logo_b64 = obtener_logo_base64()
     img_login_tag = f'<img src="data:image/png;base64,{logo_b64}" style="height: 60px; object-fit: contain; margin-bottom: 12px;" alt="DiSys Logo">' if logo_b64 else ''
 
-    st.markdown("""
-    <head>
-        <link rel="manifest" href="/app/static/manifest.json">
-        <meta name="theme-color" content="#F9690E">
-        <link rel="apple-touch-icon" href="/app/static/assets/logo.png">
-    </head>
-""", unsafe_allow_html=True)
+    st.markdown(f"""
+        <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center;">
+            <div class="disys-card" style="width: 100%; max-width: 420px; text-align: center; border-top: 6px solid #F9690E; padding: 32px;">
+                {img_login_tag}
+                <h2 style="color: #0A2239; margin-bottom: 5px;">DiSys CuentaClara</h2>
+                <p style="color: #F9690E; font-weight: 700; font-size: 13px; margin-bottom: 24px; text-transform: uppercase;">Tecnología para la distribución eficiente</p>
+    """, unsafe_allow_html=True)
 
     with st.form("form_login_principal"):
         username = st.text_input("Usuario de Acceso")
